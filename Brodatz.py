@@ -1,7 +1,7 @@
 import theano
 import numpy
 from PIL import Image
-from protocol import TensorFnDataset
+from pylearn.dataset_ops.protocol import TensorFnDataset
 
 floatX=theano.config.floatX
 

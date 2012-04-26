@@ -10,6 +10,10 @@ from PIL import Image
 import theano
 from theano import tensor
 from theano.tensor import nnet,grad
+from pylearn.io import image_tiling
+from pylearn.algorithms.mcRBM import (
+        contrastive_cost, contrastive_grad)
+import pylearn.gd.sgd
 
 import sys
 from unshared_conv_diagonally import FilterActs
@@ -40,57 +44,6 @@ def Toncv(image,filters,module_stride=1):
 def Tdeconv(filters, hidacts, irows, icols, module_stride=1):
     op = ImgActs(module_stride)
     return op(filters, hidacts, irows, icols)
-
-def contrastive_cost(free_energy_fn, pos_v, neg_v):
-    """
-    :param free_energy_fn: lambda (TensorType matrix MxN) ->  TensorType vector of M free energies
-    :param pos_v: TensorType matrix MxN of M "positive phase" particles
-    :param neg_v: TensorType matrix MxN of M "negative phase" particles
-
-    :returns: TensorType scalar that's the sum of the difference of free energies
-
-    :math: \sum_i free_energy(pos_v[i]) - free_energy(neg_v[i])
-
-    """
-    return (free_energy_fn(pos_v) - free_energy_fn(neg_v)).sum()
-
-
-def contrastive_grad(free_energy_fn, pos_v, neg_v, wrt, other_cost=0, consider_constant=[]):
-    """
-    :param free_energy_fn: lambda (TensorType matrix MxN) ->  TensorType vector of M free energies
-    :param pos_v: positive-phase sample of visible units
-    :param neg_v: negative-phase sample of visible units
-    :param wrt: TensorType variables with respect to which we want gradients (similar to the
-        'wrt' argument to tensor.grad)
-    :param other_cost: TensorType scalar (should be the sum over a minibatch, not mean)
-
-    :returns: TensorType variables for the gradient on each of the 'wrt' arguments
-
-
-    :math: Cost = other_cost + \sum_i free_energy(pos_v[i]) - free_energy(neg_v[i])
-    :math: d Cost / dW for W in `wrt`
-
-
-    This function is similar to tensor.grad - it returns the gradient[s] on a cost with respect
-    to one or more parameters.  The difference between tensor.grad and this function is that
-    the negative phase term (`neg_v`) is considered constant, i.e. d `Cost` / d `neg_v` = 0.
-    This is desirable because `neg_v` might be the result of a sampling expression involving
-    some of the parameters, but the contrastive divergence algorithm does not call for
-    backpropagating through the sampling procedure.
-
-    Warning - if other_cost depends on pos_v or neg_v and you *do* want to backpropagate from
-    the `other_cost` through those terms, then this function is inappropriate.  In that case,
-    you should call tensor.grad separately for the other_cost and add the gradient expressions
-    you get from ``contrastive_grad(..., other_cost=0)``
-
-    """
-    cost=contrastive_cost(free_energy_fn, pos_v, neg_v)
-    if other_cost:
-        cost = cost + other_cost
-    return theano.tensor.grad(cost,
-            wrt=wrt,
-            consider_constant=consider_constant+[neg_v])
-
 
 
 def unnatural_sgd_updates(params, grads, stepsizes, tracking_coef=0.1, epsilon=1):
@@ -955,12 +908,12 @@ def main_train():
             n_filters_hs=32,
             v_prec_init=10, # this should increase with n_filters_hs?
             filters_hs_size=11,
-            filters_irange=.1,
+            filters_irange=.01,
             zero_out_interior_weights=False,
             #sparsity_weight_conv=0,#numpy.float32(500),
             #sparsity_weight_global=0.,
-            particles_min=-50,
-            particles_max=50,
+            particles_min=-5,
+            particles_max=5,
             #problem_term_vWWv_weight = 0.,
             #problem_term_vIv_weight = 0.,
             n_tiled_conv_offset_diagonally = 1,
