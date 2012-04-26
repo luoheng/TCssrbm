@@ -539,15 +539,14 @@ class Trainer(object): # updates of this object implement training
         #ups[self.global_h_means] = new_global_h_means
 
 
-        sparsity_cost = 0
-        self.sparsity_cost = sparsity_cost
+        #sparsity_cost = 0
+        #self.sparsity_cost = sparsity_cost
         # SML updates PCD
         add_updates(
                 self.rbm.cd_updates(
                     pos_v=self.visible_batch,
                     neg_v=self.sampler.particles,
-                    stepsizes=[annealing_coef*lr for lr in self.learn_rates],
-                    other_cost=sparsity_cost))
+                    stepsizes=[annealing_coef*lr for lr in self.learn_rates]))
         
         if conf['chain_reset_prob']:
             # advance the 'negative-phase' chain
@@ -563,7 +562,7 @@ class Trainer(object): # updates of this object implement training
         #print broadcastable_value
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
 	#recons_error   = tensor.sum((self.visible_batch-reconstructions)**2)
-	recons_error = 0
+	recons_error = 0.0
         ups[self.recons_error] = recons_error
 	#return {self.particles: new_particles}
         ups[self.sampler.particles] = tensor.clip(new_particles,
