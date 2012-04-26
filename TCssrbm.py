@@ -539,15 +539,15 @@ class Trainer(object): # updates of this object implement training
         #ups[self.global_h_means] = new_global_h_means
 
 
-        sparsity_cost = 0.0
-        self.sparsity_cost = sparsity_cost
+        #sparsity_cost = 0
+        #self.sparsity_cost = sparsity_cost
+
         # SML updates PCD
         add_updates(
                 self.rbm.cd_updates(
                     pos_v=self.visible_batch,
                     neg_v=self.sampler.particles,
-                    stepsizes=[annealing_coef*lr for lr in self.learn_rates],
-                    other_cost=sparsity_cost))
+                    stepsizes=[annealing_coef*lr for lr in self.learn_rates]))
         
         if conf['chain_reset_prob']:
             # advance the 'negative-phase' chain
