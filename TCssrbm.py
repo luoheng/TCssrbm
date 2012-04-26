@@ -539,7 +539,7 @@ class Trainer(object): # updates of this object implement training
         #ups[self.global_h_means] = new_global_h_means
 
 
-        sparsity_cost = 0
+        sparsity_cost = 0.0
         self.sparsity_cost = sparsity_cost
         # SML updates PCD
         add_updates(
@@ -563,7 +563,7 @@ class Trainer(object): # updates of this object implement training
         #print broadcastable_value
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
 	#recons_error   = tensor.sum((self.visible_batch-reconstructions)**2)
-	recons_error = 0
+	recons_error = 0.0
         ups[self.recons_error] = recons_error
 	#return {self.particles: new_particles}
         ups[self.sampler.particles] = tensor.clip(new_particles,
@@ -792,7 +792,7 @@ def main0(rval_doc):
     conf = rval_doc['conf']
     batchsize = conf['batchsize']
 
-    batch_idx = tensor.iscalar()
+    batch_idx = tensor.lscalar()
     batch_range = batch_idx * conf['batchsize'] + numpy.arange(conf['batchsize'])
     
     
