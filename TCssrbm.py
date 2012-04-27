@@ -854,7 +854,7 @@ def main0(rval_doc):
             conf = conf
             )
 
-    ntrain_batches = 1 #because we randomly generate minibatches
+  
     print 'start building function'
     training_updates = trainer.updates() #
     train_fn = theano.function(inputs=[batch_idx],
@@ -868,7 +868,7 @@ def main0(rval_doc):
     
     iter = 0
     while trainer.annealing_coef.get_value()>=0: #
-        dummy = train_fn(iter%ntrain_batches) #
+        dummy = train_fn(iter) #
         #trainer.print_status()
 	if iter % 100 == 0:
             rbm.dump_to_file(os.path.join(_temp_data_path_,'rbm_%06i.pkl'%iter))

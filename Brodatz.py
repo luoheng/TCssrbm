@@ -19,7 +19,7 @@ def Brodatz_op(s_idx, filename, patch_shape=(1,98,98), noise_concelling=100, see
             bcast=(False, False, False),
             fn=fn,
             single_shape=(1,98,98))
-    return op(s_idx)
+    return op(s_idx%batchdata_size)
     
 class Brodatz(object):
     
