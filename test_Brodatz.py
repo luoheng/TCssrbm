@@ -2,10 +2,10 @@ import theano
 from Brodatz import Brodatz_op
 import numpy
 from PIL import Image
-from Tmussrbm_fastops import tile_conv_weights
+from TCssrbm import tile_conv_weights
 
 s_idx=theano.tensor.lscalar()
-batch_range =s_idx*16 + numpy.arange(16)
+batch_range =s_idx*64 + numpy.arange(64)
 batchdat=Brodatz_op(batch_range,'../Brodatz/D6.gif')
 fn=theano.function([s_idx],batchdat)
 for n in xrange(10):
