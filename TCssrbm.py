@@ -512,7 +512,7 @@ class Trainer(object): # updates of this object implement training
                 conf=conf,
                 annealing_coef=sharedX(1.0, 'annealing_coef'),
                 conv_h_means = sharedX(numpy.zeros(rbm.conv_bias_hs_shape)+0.5,'conv_h_means'),
-                recons_error = sharedX(error,'reconstruction_error')
+                recons_error = sharedX(error,'reconstruction_error'),                
                 )
 
     def __init__(self, **kwargs):
@@ -535,6 +535,7 @@ class Trainer(object): # updates of this object implement training
         
         
         new_conv_h_means = 0.1 * conv_h.mean(axis=0) + .9*self.conv_h_means
+        #new_conv_h_means = conv_h.mean(axis=0)
         ups[self.conv_h_means] = new_conv_h_means
         #ups[self.global_h_means] = new_global_h_means
 
@@ -550,14 +551,22 @@ class Trainer(object): # updates of this object implement training
         
         if conf['chain_reset_prob']:
             # advance the 'negative-phase' chain
+            nois_batch = self.sampler.s_rng.normal(size=self.rbm.v_shape)
             resets = self.sampler.s_rng.uniform(size=(conf['batchsize'],))<conf['chain_reset_prob']
             old_particles = tensor.switch(resets.dimshuffle(0,'x','x','x'),
-                    self.visible_batch,   # reset the chain
+                    nois_batch,   # reset the chain
                     self.sampler.particles,  #continue chain
                     )
+            #old_particles = tensor.switch(resets.dimshuffle(0,'x','x','x'),
+            #        self.visible_batch,   # reset the chain
+            #        self.sampler.particles,  #continue chain
+            #        )
         else:
             old_particles = self.sampler.particles
-        new_particles  = self.rbm.gibbs_step_for_v(old_particles, self.sampler.s_rng)
+        tmp_particles = old_particles    
+        for step in xrange(self.conf['steps_sampling']):
+             tmp_particles  = self.rbm.gibbs_step_for_v(tmp_particles, self.sampler.s_rng)
+        new_particles = tmp_particles       
         #broadcastable_value = new_particles.broadcastable
         #print broadcastable_value
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
@@ -680,21 +689,37 @@ class Trainer(object): # updates of this object implement training
         print 'lr annealing coef:', self.annealing_coef.get_value()
 	print 'reconstruction error:', self.recons_error.get_value()
 
-def main_inpaint(filename, algo='Gibbs', rng=777888):
+def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False):
     rbm = cPickle.load(open(filename))
     sampler = Gibbs.alloc(rbm, rbm.conf['batchsize'], rng)
-
-    mat = scipy.io.loadmat('../Brodatz')
-    #mat = scipy.io.loadmat('../Brodatz_D103_smallSTD')
-    batchdata = mat['batchdata']
-    batchdata = numpy.cast['float32'](batchdata)
-    batchdata = batchdata[0:10,:,:,:]
+    
+    batch_idx = tensor.iscalar()
+    batch_range = batch_idx * rbm.conf['batchsize'] + numpy.arange(rbm.conf['batchsize'])
+    
+    n_examples = rbm.conf['batchsize']   #64
+    n_img_rows = 98
+    n_img_cols = 98
+    n_img_channels=1
+    batch_x = Brodatz_op(batch_range,
+  	                     '../../../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     patch_shape=(n_img_channels,
+  	                                 n_img_rows,
+  	                                 n_img_cols), 
+  	                     noise_concelling=10., 
+  	                     seed=3322, 
+  	                     batchdata_size=n_examples
+  	                     )	
+    fn_getdata = theano.function([batch_idx],batch_x)
+    batchdata = fn_getdata(0)
+    scaled_batchdata = (batchdata - batchdata.min())/(batchdata.max() - batchdata.min() + 1e-6)
+    scaled_batchdata[:,:,11:88,11:88] = 0
+    
     batchdata[:,:,11:88,11:88] = 0
-    shared_batchdata = sharedX(batchdata,name='data')
-
-    border_mask = numpy.zeros((10,1,98,98),dtype=floatX)
+    print 'the min of border: %f, the max of border: %f'%(batchdata.min(),batchdata.max())
+    shared_batchdata = sharedX(batchdata,'batchdata')
+    border_mask = numpy.zeros((n_examples,n_img_channels,n_img_rows,n_img_cols),dtype=floatX)
     border_mask[:,:,11:88,11:88]=1
-
+        
     sampler.particles = shared_batchdata
     new_particles = rbm.gibbs_step_for_v(sampler.particles, sampler.s_rng)
     new_particles = tensor.mul(new_particles,border_mask)
@@ -704,19 +729,35 @@ def main_inpaint(filename, algo='Gibbs', rng=777888):
     particles = sampler.particles
 
 
-    for i in xrange(200):
+    for i in xrange(500):
         print i
-        if i % 10 == 0:
+        if i % 20 == 0:
             savename = '%s_inpaint_%04i.png'%(filename,i)
             print 'saving'
-            Image.fromarray(
+            temp = particles.get_value(borrow=True)
+            print 'the min of center: %f, the max of center: %f' \
+                                 %(temp[:,:,11:88,11:88].min(),temp[:,:,11:88,11:88].max())
+            if scale_separately:
+	        scale_separately_savename = '%s_inpaint_scale_separately_%04i.png'%(filename,i)
+	        blank_img = numpy.zeros((n_examples,n_img_channels,n_img_rows,n_img_cols),dtype=floatX)
+	        tmp = temp[:,:,11:88,11:88]
+	        tmp = (tmp - tmp.min()) / (tmp.max() - tmp.min() + 1e-6)
+	        blank_img[:,:,11:88,11:88] = tmp 
+	        blank_img = blank_img + scaled_batchdata
+	        Image.fromarray(
+                tile_conv_weights(
+                    blank_img,
+                    flip=False),
+                'L').save(scale_separately_savename)
+            else:
+	        Image.fromarray(
                 tile_conv_weights(
                     particles.get_value(borrow=True),
                     flip=False),
                 'L').save(savename)
         fn()
 
-def main_sample(filename, algo='Gibbs', rng=777888, burn_in=500, save_interval=500, n_files=1):
+def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=5000, n_files=10):
     rbm = cPickle.load(open(filename))
     if algo == 'Gibbs':
         sampler = Gibbs.alloc(rbm, rbm.conf['batchsize'], rng)
@@ -741,7 +782,7 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=500, save_interval=5
 
     for i in xrange(burn_in):
 	print i
-	if i % 10 == 0:
+	if i % 20 == 0:
             savename = '%s_sample_burn_%04i.png'%(filename,i)
 	    print 'saving'
 	    Image.fromarray(
@@ -802,11 +843,11 @@ def main0(rval_doc):
         n_img_cols = 98
         n_img_channels=1
   	batch_x = Brodatz_op(batch_range,
-  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
-  	                     noise_concelling=100., 
+  	                     noise_concelling=0., 
   	                     seed=3322, 
   	                     batchdata_size=n_examples
   	                     )	
@@ -851,7 +892,7 @@ def main0(rval_doc):
                 rbm.conv_alpha: sharedX(base_lr, 'conv_alpha_lr'),
                 rbm.conv_lambda: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr'),
                 },
-            conf = conf
+            conf = conf,
             )
 
   
@@ -870,7 +911,7 @@ def main0(rval_doc):
     while trainer.annealing_coef.get_value()>=0: #
         dummy = train_fn(iter) #
         #trainer.print_status()
-	if iter % 100 == 0:
+	if iter % 1000 == 0:
             rbm.dump_to_file(os.path.join(_temp_data_path_,'rbm_%06i.pkl'%iter))
         if iter <= 1000 and not (iter % 100): #
             trainer.print_status()
@@ -886,7 +927,7 @@ def main_train():
     main0(dict(
         conf=dict(
             dataset='Brodatz',
-            chain_reset_prob=.02,#approx CD-50
+            chain_reset_prob=.001,#approx CD-50
             unnatural_grad=True,
             alpha_logdomain=True,
             conv_alpha0=10.,
@@ -897,25 +938,26 @@ def main_train():
             lambda_max=10,
             lambda0=0.001,
             lambda_logdomain=False,
-            conv_bias0=0., 
-            conv_bias_irange=1.,#conv_bias0 +- this
+            conv_bias0=-1.0, 
+            conv_bias_irange=0.0,#conv_bias0 +- this
             conv_mu0 = 1.0,
-            train_iters=600000,
-            base_lr_per_example=0.0003,
+            train_iters=100000,
+            base_lr_per_example=0.0001,
             conv_lr_coef=1.0,
             batchsize=64,
             n_filters_hs=32,
             v_prec_init=10, # this should increase with n_filters_hs?
             filters_hs_size=11,
-            filters_irange=.01,
+            filters_irange=.1,
             zero_out_interior_weights=False,
             #sparsity_weight_conv=0,#numpy.float32(500),
             #sparsity_weight_global=0.,
-            particles_min=-5,
-            particles_max=5,
+            particles_min=-100.,
+            particles_max=100.,
             #problem_term_vWWv_weight = 0.,
             #problem_term_vIv_weight = 0.,
             n_tiled_conv_offset_diagonally = 1,
+            steps_sampling = 1,            
             )))
     
 
@@ -924,7 +966,7 @@ if __name__ == '__main__':
         sys.exit(main_train())
     if sys.argv[1] == 'sampling':
 	sys.exit(main_sample(sys.argv[2]))
-    #if sys.argv[1] == 'inpaint':
-    #    sys.exit(main_inpaint(sys.argv[2]))
+    if sys.argv[1] == 'inpaint':
+        sys.exit(main_inpaint(sys.argv[2]))
     if sys.argv[1] == 'print_status':
         sys.exit(main_print_status(sys.argv[2]))
