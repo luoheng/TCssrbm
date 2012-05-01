@@ -854,13 +854,14 @@ def main0(rval_doc):
         n_img_cols = 98
         n_img_channels=1
   	batch_x = Brodatz_op(batch_range,
-  	                     '../../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
-  	                     noise_concelling=100., 
+  	                     noise_concelling=0., 
   	                     seed=3322, 
-  	                     batchdata_size=n_examples
+  	                     batchdata_size=n_examples,
+                             rescale=0.25
   	                     )	
     else:
         raise ValueError('dataset', conf['dataset'])
