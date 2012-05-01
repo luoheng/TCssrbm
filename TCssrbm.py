@@ -61,8 +61,18 @@ def unnatural_sgd_updates(params, grads, stepsizes, tracking_coef=0.1, epsilon=1
         # natural grad doesn't want sqrt, but i found it worked worse
         updates[p] = p - s * gm / tensor.sqrt(var_g+epsilon)
     return updates
-
-
+"""
+def grad_updates(params, grads, stepsizes):
+    grad_means = [theano.shared(numpy.zeros_like(p.get_value(borrow=True)))
+            for p in params]
+    grad_means_sqr = [theano.shared(numpy.ones_like(p.get_value(borrow=True)))
+            for p in params]
+    updates = dict()
+    for g, p, s in zip(
+            grads, params, stepsizes):
+        updates[p] = p - s*g
+    return updates
+"""
 def safe_update(a, b):
     for k,v in dict(b).iteritems():
         if k in a:
@@ -397,9 +407,7 @@ class RBM(object):
         if self.conf['unnatural_grad']:
             sgd_updates = unnatural_sgd_updates
         else:
-            #sgd_updates = pylearn.gd.sgd.sgd_updates
-            pass
-        #self.conv_bias_hs = self.conv_bias_hs+self.h_tiled_conv_mask
+            sgd_updates = pylearn.gd.sgd.sgd_updates
         rval = dict(
                 sgd_updates(
                     self.params(),
@@ -512,6 +520,7 @@ class Trainer(object): # updates of this object implement training
                 conf=conf,
                 annealing_coef=sharedX(1.0, 'annealing_coef'),
                 conv_h_means = sharedX(numpy.zeros(rbm.conv_bias_hs_shape)+0.5,'conv_h_means'),
+                cpnv_h       = sharedX(numpy.zeros(rbm.out_conv_hs_shape), 'conv_h'),
                 recons_error = sharedX(error,'reconstruction_error'),                
                 )
 
@@ -537,6 +546,7 @@ class Trainer(object): # updates of this object implement training
         new_conv_h_means = 0.1 * conv_h.mean(axis=0) + .9*self.conv_h_means
         #new_conv_h_means = conv_h.mean(axis=0)
         ups[self.conv_h_means] = new_conv_h_means
+        ups[self.cpnv_h] = conv_h
         #ups[self.global_h_means] = new_global_h_means
 
 
@@ -682,6 +692,7 @@ class Trainer(object): # updates of this object implement training
         print_minmax('v_prec', self.rbm.v_prec.get_value(borrow=True))
         print_minmax('particles', self.sampler.particles.get_value())
         print_minmax('conv_h_means', self.conv_h_means.get_value())
+        print_minmax('conv_h', self.cpnv_h.get_value())
         #print self.conv_h_means.get_value()[0,0:11,0:11]
 	#print self.rbm.conv_bias_hs.get_value(borrow=True)[0,0,0:3,0:3]
         #print self.rbm.h_tiled_conv_mask.get_value(borrow=True)[0,32,0:3,0:3]
@@ -847,7 +858,7 @@ def main0(rval_doc):
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
-  	                     noise_concelling=0., 
+  	                     noise_concelling=100., 
   	                     seed=3322, 
   	                     batchdata_size=n_examples
   	                     )	
@@ -927,8 +938,8 @@ def main_train():
     main0(dict(
         conf=dict(
             dataset='Brodatz',
-            chain_reset_prob=.001,#approx CD-50
-            unnatural_grad=True,
+            chain_reset_prob=.0,#approx CD-50
+            unnatural_grad=False,
             alpha_logdomain=True,
             conv_alpha0=10.,
             global_alpha0=10.,
@@ -938,22 +949,22 @@ def main_train():
             lambda_max=10,
             lambda0=0.001,
             lambda_logdomain=False,
-            conv_bias0=-1.0, 
+            conv_bias0=0.0, 
             conv_bias_irange=0.0,#conv_bias0 +- this
             conv_mu0 = 1.0,
             train_iters=100000,
-            base_lr_per_example=0.0001,
+            base_lr_per_example=0.00001,
             conv_lr_coef=1.0,
             batchsize=64,
             n_filters_hs=32,
             v_prec_init=10, # this should increase with n_filters_hs?
             filters_hs_size=11,
-            filters_irange=.1,
+            filters_irange=.01,
             zero_out_interior_weights=False,
             #sparsity_weight_conv=0,#numpy.float32(500),
             #sparsity_weight_global=0.,
-            particles_min=-100.,
-            particles_max=100.,
+            particles_min=-1000.,
+            particles_max=1000.,
             #problem_term_vWWv_weight = 0.,
             #problem_term_vIv_weight = 0.,
             n_tiled_conv_offset_diagonally = 1,
