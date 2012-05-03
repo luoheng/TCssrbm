@@ -469,21 +469,16 @@ class RBM(object):
 
 class Gibbs(object): # if there's a Sampler interface - this should support it
     @classmethod
-    def alloc(cls, rbm, batchsize, rng):
+    def alloc(cls, rbm, rng):
         if not hasattr(rng, 'randn'):
             rng = numpy.random.RandomState(rng)
         self = cls()
         seed=int(rng.randint(2**30))
         self.rbm = rbm
-	if batchsize==rbm.v_shape[0]:
-	    self.particles = sharedX(
+	self.particles = sharedX(
             rng.randn(*rbm.v_shape),
             name='particles')
-	else:
-	    self.particles = sharedX(
-            rng.randn(batchsize,1,98,98),
-            name='particles')
-        self.s_rng = RandomStreams(seed)
+	self.s_rng = RandomStreams(seed)
         return self
 
 def HMC(rbm, batchsize, rng): # if there's a Sampler interface - this should support it
@@ -509,7 +504,7 @@ class Trainer(object): # updates of this object implement training
             ):
 
         batchsize = rbm.v_shape[0]
-        sampler = Gibbs.alloc(rbm, batchsize, rng=rng)
+        sampler = Gibbs.alloc(rbm, rng=rng)
 	print 'alloc trainer'
         error = 0.0
         return cls(
@@ -579,10 +574,11 @@ class Trainer(object): # updates of this object implement training
 	    steps_sampling = self.iteration.get_value() / 1000 + 1
 	else:
 	    steps_sampling = self.conf['constant_steps_sampling']
-	#print steps_sampling
+	#print steps_sampling        
         tmp_particles = old_particles    
         for step in xrange(int(steps_sampling)):
-             tmp_particles  = self.rbm.gibbs_step_for_v(tmp_particles, self.sampler.s_rng)
+             tmp_particles  = self.rbm.gibbs_step_for_v(tmp_particles,\
+                            self.sampler.s_rng,border_mask=conf['border_mask'])
         new_particles = tmp_particles       
         #broadcastable_value = new_particles.broadcastable
         #print broadcastable_value
@@ -700,6 +696,7 @@ class Trainer(object): # updates of this object implement training
         print_minmax('particles', self.sampler.particles.get_value())
         print_minmax('conv_h_means', self.conv_h_means.get_value())
         print_minmax('conv_h', self.cpnv_h.get_value())
+        print (self.cpnv_h.get_value()).std()
         #print self.conv_h_means.get_value()[0,0:11,0:11]
 	#print self.rbm.conv_bias_hs.get_value(borrow=True)[0,0,0:3,0:3]
         #print self.rbm.h_tiled_conv_mask.get_value(borrow=True)[0,32,0:3,0:3]
@@ -719,11 +716,11 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False):
     n_img_cols = 98
     n_img_channels=1
     batch_x = Brodatz_op(batch_range,
-  	                     '../../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
-  	                     noise_concelling=10., 
+  	                     noise_concelling=0., 
   	                     seed=3322, 
   	                     batchdata_size=n_examples
   	                     )	
@@ -777,9 +774,12 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False):
 
 def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=5000, n_files=10):
     rbm = cPickle.load(open(filename))
+    rbm.v_shape = (4,1,373,373)
+    rbm.out_conv_hs_shape = FilterActs.infer_shape_without_instance(rbm.v_shape,rbm.filters_hs_shape)
+    rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
     if algo == 'Gibbs':
-        sampler = Gibbs.alloc(rbm, rbm.conf['batchsize'], rng)
-        new_particles  = rbm.gibbs_step_for_v(sampler.particles, sampler.s_rng)
+        sampler = Gibbs.alloc(rbm, rng)
+        new_particles  = rbm.gibbs_step_for_v(sampler.particles, sampler.s_rng,border_mask=False)
         new_particles = tensor.clip(new_particles,
                 rbm.conf['particles_min'],
                 rbm.conf['particles_max'])
@@ -827,7 +827,7 @@ def main_print_status(filename, algo='Gibbs', rng=777888, burn_in=500, save_inte
         print msg, x.min(), x.max()
     rbm = cPickle.load(open(filename))
     if algo == 'Gibbs':
-        sampler = Gibbs.alloc(rbm, rbm.conf['batchsize'], rng)
+        sampler = Gibbs.alloc(rbm, rng)
         new_particles  = rbm.gibbs_step_for_v(sampler.particles, sampler.s_rng)
         #new_particles = tensor.clip(new_particles,
         #        rbm.conf['particles_min'],
@@ -861,7 +861,7 @@ def main0(rval_doc):
         n_img_cols = 98
         n_img_channels=1
   	batch_x = Brodatz_op(batch_range,
-  	                     '../../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
@@ -891,7 +891,7 @@ def main0(rval_doc):
                 ),            #fmodules(stride) x filters_per_modules x fcolors(channels) x frows x fcols
             filters_irange=conf['filters_irange'],
             v_prec=conf['v_prec_init'],
-            v_prec_lower_limit=conf['v_prec_init'],            
+            v_prec_lower_limit=conf['v_prec_lower_limit'],            
             )
 
     rbm.save_weights_to_grey_files('iter_0000')
@@ -946,7 +946,7 @@ def main_train():
     main0(dict(
         conf=dict(
             dataset='Brodatz',
-            chain_reset_prob=.0,#approx CD-50
+            chain_reset_prob=.02,#approx CD-50
             unnatural_grad=False,
             alpha_logdomain=True,
             conv_alpha0=10.,
@@ -965,8 +965,9 @@ def main_train():
             conv_lr_coef=1.0,
             batchsize=64,
             n_filters_hs=32,
-            v_prec_init=10, # this should increase with n_filters_hs?
-            filters_hs_size=11,
+            v_prec_init=10., # this should increase with n_filters_hs?
+            v_prec_lower_limit = 1.,
+	    filters_hs_size=11,
             filters_irange=.01,
             zero_out_interior_weights=False,
             #sparsity_weight_conv=0,#numpy.float32(500),
@@ -978,6 +979,7 @@ def main_train():
             n_tiled_conv_offset_diagonally = 1,
             constant_steps_sampling = 1,         
             increase_steps_sampling = True,
+            border_mask=True,
             )))
     
 
