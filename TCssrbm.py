@@ -25,7 +25,7 @@ from Brodatz import Brodatz_op
 import os
 _temp_data_path_ = '.'#'/Tmp/luoheng'
 
-if 1:
+if 0:
     print 'WARNING: using SLOW rng'
     RandomStreams = tensor.shared_randomstreams.RandomStreams
 else:
@@ -512,7 +512,7 @@ class Trainer(object): # updates of this object implement training
                 conf=conf,
                 annealing_coef=sharedX(1.0, 'annealing_coef'),
                 conv_h_means = sharedX(numpy.zeros(rbm.conv_bias_hs_shape)+0.5,'conv_h_means'),
-                recons_error = sharedX(error,'reconstruction_error')
+                #recons_error = sharedX(error,'reconstruction_error')
                 )
 
     def __init__(self, **kwargs):
@@ -563,8 +563,8 @@ class Trainer(object): # updates of this object implement training
         #print broadcastable_value
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
 	#recons_error   = tensor.sum((self.visible_batch-reconstructions)**2)
-	recons_error = 0.0
-        ups[self.recons_error] = recons_error
+	#recons_error = 0.0
+        #ups[self.recons_error] = recons_error
 	#return {self.particles: new_particles}
         ups[self.sampler.particles] = tensor.clip(new_particles,
                 conf['particles_min'],
@@ -679,7 +679,7 @@ class Trainer(object): # updates of this object implement training
         #print self.rbm.h_tiled_conv_mask.get_value(borrow=True)[0,32,0:3,0:3]
 	#print_minmax('global_h_means', self.global_h_means.get_value())
         print 'lr annealing coef:', self.annealing_coef.get_value()
-	print 'reconstruction error:', self.recons_error.get_value()
+	#print 'reconstruction error:', self.recons_error.get_value()
 
 def main_inpaint(filename, algo='Gibbs', rng=777888):
     rbm = cPickle.load(open(filename))
@@ -864,11 +864,13 @@ def main0(rval_doc):
             #mode='DEBUG_MODE',
 	    updates=training_updates	    
 	    )  #
+	    
+    theano.printing.pydotprint(train_fn, "graph.png")
 
     print 'training...'
     
     iter = 0
-    while trainer.annealing_coef.get_value()>=0: #
+    while trainer.annealing_coef.get_value()>=0 and iter <= 200: #
         dummy = train_fn(iter%ntrain_batches) #
         #trainer.print_status()
 	if iter % 100 == 0:
