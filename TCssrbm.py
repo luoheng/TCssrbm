@@ -706,7 +706,7 @@ class Trainer(object): # updates of this object implement training
 
 def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False):
     rbm = cPickle.load(open(filename))
-    sampler = Gibbs.alloc(rbm, rbm.conf['batchsize'], rng)
+    sampler = Gibbs.alloc(rbm, rng)
     
     batch_idx = tensor.iscalar()
     batch_range = batch_idx * rbm.conf['batchsize'] + numpy.arange(rbm.conf['batchsize'])
@@ -716,7 +716,7 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False):
     n_img_cols = 98
     n_img_channels=1
     batch_x = Brodatz_op(batch_range,
-  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../../Brodatz/D68.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
@@ -774,7 +774,7 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False):
 
 def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=5000, n_files=10):
     rbm = cPickle.load(open(filename))
-    rbm.v_shape = (4,1,373,373)
+    rbm.v_shape = (2,1,2045,2045)
     rbm.out_conv_hs_shape = FilterActs.infer_shape_without_instance(rbm.v_shape,rbm.filters_hs_shape)
     rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
     if algo == 'Gibbs':
@@ -800,14 +800,17 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=
 
     for i in xrange(burn_in):
 	print i
-	if i % 20 == 0:
-            savename = '%s_sample_burn_%04i.png'%(filename,i)
-	    print 'saving'
-	    Image.fromarray(
-                tile_conv_weights(
-                    particles.get_value(borrow=True),
-                    flip=False),
-                'L').save(savename)	
+	#if i % 20 == 0:
+        savename = '%s_Large_sample_burn_%04i.png'%(filename,i)
+	print 'saving'
+	tmp = particles.get_value(borrow=True)[0,0,11:363,11:363]
+	w = numpy.asarray(255 * (tmp - tmp.min()) / (tmp.max() - tmp.min() + 1e-6), dtype='uint8')
+	Image.fromarray(w,'L').save(savename)	
+	#Image.fromarray(
+        #        tile_conv_weights(
+        #            particles.get_value(borrow=True),
+        #            flip=False),
+        #        'L').save(savename)	
         fn()
 
     for n in xrange(n_files):
@@ -861,7 +864,7 @@ def main0(rval_doc):
         n_img_cols = 98
         n_img_channels=1
   	batch_x = Brodatz_op(batch_range,
-  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../../Brodatz/D68.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
@@ -949,7 +952,7 @@ def main_train():
             chain_reset_prob=.02,#approx CD-50
             unnatural_grad=False,
             alpha_logdomain=True,
-            conv_alpha0=10.,
+            conv_alpha0=20.,
             global_alpha0=10.,
             alpha_min=1.,
             alpha_max=100.,
@@ -965,7 +968,7 @@ def main_train():
             conv_lr_coef=1.0,
             batchsize=64,
             n_filters_hs=32,
-            v_prec_init=10., # this should increase with n_filters_hs?
+            v_prec_init=5., # this should increase with n_filters_hs?
             v_prec_lower_limit = 1.,
 	    filters_hs_size=11,
             filters_irange=.01,
