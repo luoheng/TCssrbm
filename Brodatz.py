@@ -1,11 +1,11 @@
 import theano
 import numpy
 from PIL import Image
-from pylearn.dataset_ops.protocol import TensorFnDataset
+from protocol_ import TensorFnDataset
 
 floatX=theano.config.floatX
 
-def Brodatz_op(s_idx, filename, patch_shape=(1,98,98), noise_concelling=100, seed=3322, batchdata_size=64):
+def Brodatz_op(s_idx, filename, patch_shape=(1,98,98), noise_concelling=100, seed=3322, batchdata_size=64, rescale=1.0):
     """Return symbolic Brodatz_images[s_idx]
 
     If s_idx is a scalar, the return value is a tensor3 of shape 1,98,98.
@@ -13,17 +13,17 @@ def Brodatz_op(s_idx, filename, patch_shape=(1,98,98), noise_concelling=100, see
     is a tensor4 of shape N,1,98,98.
     """
     
-    ob = Brodatz(filename, patch_shape, noise_concelling, seed, batchdata_size)
+    ob = Brodatz(filename, patch_shape, noise_concelling, seed, batchdata_size, rescale)
     fn = ob.extract_random_patches
     op = TensorFnDataset(floatX,
             bcast=(False, False, False),
             fn=fn,
             single_shape=(1,98,98))
-    return op(s_idx)
+    return op(s_idx%batchdata_size)
     
 class Brodatz(object):
     
-    def __init__(self, filename, patch_shape, noise_concelling, seed, batchdata_size):        
+    def __init__(self, filename, patch_shape, noise_concelling, seed, batchdata_size, rescale):        
         self.patch_shape = patch_shape
         self.filename = filename
         self.ncc = noise_concelling
@@ -44,7 +44,8 @@ class Brodatz(object):
         assert patch_channels == 1
         
         self.training_img = self.training_img - self.training_img.mean()
-        self.training_img = self.training_img/(self.training_img.std()+self.ncc)
+        self.training_img = self.training_img/(rescale*self.training_img.std()+self.ncc)
+        print 'the std of the training data is:%f' %self.training_img.std() 
     #@staticmethod   
     def extract_random_patches(self):
         N = self.batchdata_size
