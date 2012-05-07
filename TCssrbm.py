@@ -865,12 +865,10 @@ def main0(rval_doc):
 	    updates=training_updates	    
 	    )  #
 	    
-    theano.printing.pydotprint(train_fn, "graph.png")
-
     print 'training...'
     
     iter = 0
-    while trainer.annealing_coef.get_value()>=0 and iter <= 200: #
+    while trainer.annealing_coef.get_value()>=0: #
         dummy = train_fn(iter%ntrain_batches) #
         #trainer.print_status()
 	if iter % 100 == 0:
