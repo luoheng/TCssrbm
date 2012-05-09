@@ -23,7 +23,7 @@ from Brodatz import Brodatz_op
 
 #import scipy.io
 import os
-_temp_data_path_ = '.'#'/Tmp/luoheng'
+_temp_data_path_ = '.'#'/Tmp/carriepl'
 
 if 0:
     print 'WARNING: using SLOW rng'
@@ -516,9 +516,11 @@ class Trainer(object): # updates of this object implement training
                 learn_rates = [lrdict[p] for p in rbm.params()],
                 conf=conf,
                 annealing_coef=sharedX(1.0, 'annealing_coef'),
+
                 conv_h_means = sharedX(numpy.zeros(rbm.out_conv_hs_shape[1:])+0.5,'conv_h_means'),
                 cpnv_h       = sharedX(numpy.zeros(rbm.out_conv_hs_shape), 'conv_h'),
                 recons_error = sharedX(error,'reconstruction_error'),                
+
                 )
 
     def __init__(self, **kwargs):
@@ -964,7 +966,7 @@ def main_train():
             conv_bias0=0.0, 
             conv_bias_irange=0.0,#conv_bias0 +- this
             conv_mu0 = 1.0,
-            train_iters=30000,
+            train_iters=500000,
             base_lr_per_example=0.00001,
             conv_lr_coef=1.0,
             batchsize=64,
