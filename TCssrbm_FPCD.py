@@ -210,7 +210,7 @@ class RBM(object):
         #self.v_prec = sharedX(numpy.zeros((n_channels, n_img_rows, n_img_cols))+v_prec, 'var_v_prec')
         #self.v_prec_fast = sharedX(numpy.zeros((n_channels, n_img_rows, n_img_cols))+conf['v_prec_lower_limit'], 'var_v_prec_fast')
         self.v_prec = sharedX(v_prec, 'var_v_prec')        
-        self.v_prec_fast = sharedX(v_prec_lower_limit, 'var_v_prec_fast')        
+        self.v_prec_fast = sharedX(0.0, 'var_v_prec_fast')        
         self.v_prec_lower_limit = sharedX(v_prec_lower_limit, 'v_prec_lower_limit')
         
         
@@ -227,14 +227,17 @@ class RBM(object):
 	if conf['alpha_logdomain']:
             conv_alpha_ival = numpy.zeros(conv_bias_hs_shape,dtype=floatX) + numpy.log(conf['conv_alpha0'])
 	    self.conv_alpha = sharedX(conv_alpha_ival,'conv_alpha')
-	    conv_alpha_ival_fast = numpy.zeros(conv_bias_hs_shape,dtype=floatX) + numpy.log(conf['alpha_min'])
+	    conv_alpha_ival_fast = numpy.zeros(conv_bias_hs_shape,dtype=floatX)
+	    #conv_alpha_ival_fast = numpy.zeros(conv_bias_hs_shape,dtype=floatX) + numpy.log(conf['alpha_min'])
 	    self.conv_alpha_fast = sharedX(conv_alpha_ival_fast, name='conv_alpha_fast')
 	else:
             self.conv_alpha = sharedX(
                     numpy.zeros(conv_bias_hs_shape)+conf['conv_alpha0'],
                     'conv_alpha')
             self.conv_alpha_fast = sharedX(
-                    numpy.zeros(conv_bias_hs_shape)+conf['alpha_min'], name='conv_alpha_fast')        
+                    numpy.zeros(conv_bias_hs_shape), name='conv_alpha_fast')        
+            #self.conv_alpha_fast = sharedX(
+            #        numpy.zeros(conv_bias_hs_shape)+conf['alpha_min'], name='conv_alpha_fast')        
  
         if conf['lambda_logdomain']:
             self.conv_lambda = sharedX(
@@ -242,18 +245,24 @@ class RBM(object):
                         + numpy.log(conf['lambda0']),
                     name='conv_lambda')
             self.conv_lambda_fast = sharedX(
-                    numpy.zeros(self.filters_hs_shape)
-                        + numpy.log(conf['lambda_min']),
-                    name='conv_lambda_fast')         
+                    numpy.zeros(self.filters_hs_shape),
+                    name='conv_lambda_fast')        
+            #self.conv_lambda_fast = sharedX(
+            #        numpy.zeros(self.filters_hs_shape)
+            #            + numpy.log(conf['lambda_min']),
+            #        name='conv_lambda_fast')         
         else:
             self.conv_lambda = sharedX(
                     numpy.zeros(self.filters_hs_shape)
                         + (conf['lambda0']),
                     name='conv_lambda')
             self.conv_lambda_fast = sharedX(
-                    numpy.zeros(self.filters_hs_shape)
-                        + (conf['lambda_min']),
+                    numpy.zeros(self.filters_hs_shape),
                     name='conv_lambda_fast')        
+            #self.conv_lambda_fast = sharedX(
+            #        numpy.zeros(self.filters_hs_shape)
+            #            + (conf['lambda_min']),
+            #        name='conv_lambda_fast')        
 
         negsample_mask = numpy.zeros((n_channels,n_img_rows,n_img_cols),dtype=floatX)
  	negsample_mask[:,n_filters_hs_rows:n_img_rows-n_filters_hs_rows+1,n_filters_hs_cols:n_img_cols-n_filters_hs_cols+1] = 1
@@ -691,9 +700,9 @@ class Trainer(object): # updates of this object implement training
         
         for p_fast in self.rbm.params_fast():
 	    new_p_fast = ups[p_fast]
-	    new_p_fast = new_p_fast - weight_decay*p_fast.get_value(borrow=True)
+	    new_p_fast = new_p_fast - weight_decay*p_fast
 	    ups[p_fast] = new_p_fast
-	           
+	"""           
         new_v_prec_fast = ups[self.rbm.v_prec_fast]        
         ups[self.rbm.v_prec_fast] = tensor.switch(
                 new_v_prec_fast<self.rbm.v_prec_lower_limit,
@@ -724,7 +733,7 @@ class Trainer(object): # updates of this object implement training
                         self.conf['lambda_min'],
                         self.conf['lambda_max'])                
                         
-                        
+        """                
         return ups
 
     def save_weights_to_files(self, pattern='iter_%05i'):
@@ -1028,7 +1037,7 @@ def main0(rval_doc):
     iter = 0
     while trainer.annealing_coef.get_value()>=0: #
         dummy = train_fn(iter) #
-        #trainer.print_status()
+        trainer.print_status()
 	if iter % 1000 == 0:
             rbm.dump_to_file(os.path.join(_temp_data_path_,'rbm_%06i.pkl'%iter))
         if iter <= 1000 and not (iter % 100): #
@@ -1048,7 +1057,7 @@ def main_train():
             chain_reset_prob=.0,#approx CD-50
             unnatural_grad=False,
             alpha_logdomain=True,
-            conv_alpha0=10.,
+            conv_alpha0=20.,
             global_alpha0=10.,
             alpha_min=1.,
             alpha_max=100.,
@@ -1065,7 +1074,7 @@ def main_train():
             batchsize=32,
             n_filters_hs=32,
             v_prec_init=10., # this should increase with n_filters_hs?
-            v_prec_lower_limit = 1.,
+            v_prec_lower_limit = 10.,
 	    filters_hs_size=11,
             filters_irange=.01,
             zero_out_interior_weights=False,
@@ -1080,7 +1089,7 @@ def main_train():
             increase_steps_sampling = False,
             border_mask=True,
             sampling_for_v=True,
-            penalty_for_fast_parameters = 0.05,
+            penalty_for_fast_parameters = 0.05
             )))
     
 
