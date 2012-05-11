@@ -286,33 +286,59 @@ class RBM(object):
                     
         return self
 
-    def get_conv_alpha(self):
-        if self.conf['alpha_logdomain']:
-            rval = tensor.exp(self.conv_alpha+self.conv_alpha_fast)
-	    return rval
+    def get_conv_alpha(self,With_fast=True):
+        if With_fast:
+	    if self.conf['alpha_logdomain']:
+                rval = tensor.exp(self.conv_alpha+self.conv_alpha_fast)
+	        return rval
+            else:
+                return self.conv_alpha+self.conv_alpha_fast
         else:
-            return self.conv_alpha+self.conv_alpha_fast
-    def get_conv_lambda(self):
-        if self.conf["lambda_logdomain"]:
-            L = tensor.exp(self.conv_lambda+self.conv_lambda_fast)
+	    if self.conf['alpha_logdomain']:
+                rval = tensor.exp(self.conv_alpha)
+	        return rval
+            else:
+                return self.conv_alpha
+                
+    def get_conv_lambda(self,With_fast=True):
+        if With_fast:
+	    if self.conf["lambda_logdomain"]:
+                L = tensor.exp(self.conv_lambda+self.conv_lambda_fast)
+            else:
+                L = self.conv_lambda+self.conv_lambda_fast
         else:
-            L = self.conv_lambda+self.conv_lambda_fast
+	    if self.conf["lambda_logdomain"]:
+                L = tensor.exp(self.conv_lambda)
+            else:
+                L = self.conv_lambda
         return L
-    def get_v_prec(self):
-        return self.v_prec+self.v_prec_fast
-    def get_filters_hs(self):
-        return self.filters_hs+self.filters_hs_fast
-    def get_conv_bias_hs(self):
-        return self.conv_bias_hs+self.conv_bias_hs_fast
-    def get_conv_mu(self):
-        return self.conv_mu+self.conv_mu_fast
+    def get_v_prec(self,With_fast=True):
+        if With_fast:
+	    return self.v_prec+self.v_prec_fast
+	else:
+	    return self.v_prec	    
+    def get_filters_hs(self,With_fast=True):
+        if With_fast:
+	    return self.filters_hs+self.filters_hs_fast
+	else:
+	    return self.filters_hs
+    def get_conv_bias_hs(self,With_fast=True):
+        if With_fast:
+	    return self.conv_bias_hs+self.conv_bias_hs_fast
+	else:
+	    return self.conv_bias_hs
+    def get_conv_mu(self,With_fast=True):
+        if With_fast:
+	    return self.conv_mu+self.conv_mu_fast
+	else:
+	    return self.conv_mu
         
-    def conv_problem_term(self, v):
-        L = self.get_conv_lambda()
+    def conv_problem_term(self, v, With_fast=True):
+        L = self.get_conv_lambda(With_fast)
         vLv = self.convdot(v*v, L)        
         return vLv
-    def conv_problem_term_T(self, h):
-        L = self.get_conv_lambda()
+    def conv_problem_term_T(self, h, With_fast=True):
+        L = self.get_conv_lambda(With_fast)
         #W = self.filters_hs
         #alpha = self.get_conv_alpha()
         hL = self.convdot_T(L, h)        
@@ -326,62 +352,61 @@ class RBM(object):
 
     #####################
     # spike-and-slab convolutional hidden units
-    def mean_convhs_h_given_v(self, v):
+    def mean_convhs_h_given_v(self, v, With_fast=True):
         """Return the mean of binary-valued hidden units h, given v
         """
-        alpha = self.get_conv_alpha()
-        W = self.get_filters_hs()
+        alpha = self.get_conv_alpha(With_fast)
+        W = self.get_filters_hs(With_fast)
         vW = self.convdot(v, W)
         vW_broadcastable = vW.dimshuffle(0,3,4,1,2)
         #change 64 x 11 x 32 x 8 x 8 to 64 x 8 x 8 x 11 x 32 for broadcasting
-        pre_convhs_h_parts = self.get_conv_mu()*vW_broadcastable + self.get_conv_bias_hs() +  0.5*(vW_broadcastable**2)/alpha
-                
-	rval = nnet.sigmoid(
+        pre_convhs_h_parts = self.get_conv_mu(With_fast)*vW_broadcastable + self.get_conv_bias_hs(With_fast) +  0.5*(vW_broadcastable**2)/alpha
+        rval = nnet.sigmoid(
                 tensor.add(
                     pre_convhs_h_parts.dimshuffle(0,3,4,1,2),
-                    -0.5*self.conv_problem_term(v)))
+                    -0.5*self.conv_problem_term(v,With_fast)))
         return rval
 
-    def mean_var_convhs_s_given_v(self, v):
+    def mean_var_convhs_s_given_v(self, v, With_fast=True):
         """
         Return mu (N,K,B) and sigma (N,K,K) for latent s variable.
 
         For efficiency, this method assumes all h variables are 1.
 
         """
-        alpha = self.get_conv_alpha()
-        W = self.get_filters_hs()
+        alpha = self.get_conv_alpha(With_fast)
+        W = self.get_filters_hs(With_fast)
         vW = self.convdot(v, W)
-        rval = self.get_conv_mu() + (vW.dimshuffle(0,3,4,1,2))/alpha        
+        rval = self.get_conv_mu(With_fast) + (vW.dimshuffle(0,3,4,1,2))/alpha        
         return rval.dimshuffle(0,3,4,1,2), 1.0 / alpha
 
     #####################
     # visible units
-    def mean_var_v_given_h_s(self, convhs_h, convhs_s):
-        shF = self.convdot_T(self.get_filters_hs(), convhs_h*convhs_s)        
-        conv_hL = self.conv_problem_term_T(convhs_h)
+    def mean_var_v_given_h_s(self, convhs_h, convhs_s, With_fast=True):
+        shF = self.convdot_T(self.get_filters_hs(With_fast), convhs_h*convhs_s)        
+        conv_hL = self.conv_problem_term_T(convhs_h,With_fast)
         contrib = shF               
-        sigma_sq = 1.0 / (self.get_v_prec() + conv_hL)
+        sigma_sq = 1.0 / (self.get_v_prec(With_fast) + conv_hL)
         mu = contrib * sigma_sq        
         return mu, sigma_sq
 
 
-    def all_hidden_h_means_given_v(self, v):
-        mean_convhs_h = self.mean_convhs_h_given_v(v)
+    def all_hidden_h_means_given_v(self, v, With_fast=True):
+        mean_convhs_h = self.mean_convhs_h_given_v(v,With_fast)
         return mean_convhs_h
 
     #####################
 
-    def gibbs_step_for_v(self, v, s_rng, return_locals=False, border_mask=True, sampling_for_v=True):
+    def gibbs_step_for_v(self, v, s_rng, return_locals=False, border_mask=True, sampling_for_v=True, With_fast=True):
         #positive phase
 
         # spike variable means
-        mean_convhs_h = self.all_hidden_h_means_given_v(v)
+        mean_convhs_h = self.all_hidden_h_means_given_v(v,With_fast)
         #broadcastable_value = mean_convhs_h.broadcastable
         #print broadcastable_value
         
         # slab variable means
-        meanvar_convhs_s = self.mean_var_convhs_s_given_v(v)
+        meanvar_convhs_s = self.mean_var_convhs_s_given_v(v,With_fast)
         #smean, svar = meanvar_convhs_s
         #broadcastable_value = smean.broadcastable
         #print broadcastable_value
@@ -406,7 +431,7 @@ class RBM(object):
         	
         #negative phase
         vv_mean, vv_var = self.mean_var_v_given_h_s(
-                sample_convhs_h, sample_convhs_s,
+                sample_convhs_h, sample_convhs_s,With_fast
                 )
         if sampling_for_v:
 	    vv_sample = s_rng.normal(size=self.v_shape) * tensor.sqrt(vv_var) + vv_mean
@@ -421,8 +446,9 @@ class RBM(object):
             return vv_sample, locals()
         else:
             return vv_sample
+               
    
-    def free_energy_given_v(self, v):
+    def free_energy_given_v(self, v, With_fast=True):
         # This is accurate up to a multiplicative constant
         # because I dropped some terms involving 2pi
         if self.conf['alpha_logdomain']:
@@ -545,9 +571,12 @@ class Gibbs(object): # if there's a Sampler interface - this should support it
         self = cls()
         seed=int(rng.randint(2**30))
         self.rbm = rbm
-	self.particles = sharedX(
-            numpy.zeros(rbm.v_shape),
+        self.particles = sharedX(
+            rng.randn(*rbm.v_shape),
             name='particles')
+	#self.particles = sharedX(
+        #    numpy.zeros(rbm.v_shape),
+        #    name='particles')
 	self.s_rng = RandomStreams(seed)
         return self
 
@@ -834,7 +863,8 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False, sam
     border_mask[:,:,11:88,11:88]=1
         
     sampler.particles = shared_batchdata
-    new_particles = rbm.gibbs_step_for_v(sampler.particles, sampler.s_rng, sampling_for_v=sampling_for_v)
+    new_particles = rbm.gibbs_step_for_v(sampler.particles, sampler.s_rng, 
+                                 sampling_for_v=sampling_for_v,With_fast=False)
     new_particles = tensor.mul(new_particles,border_mask)
     new_particles = tensor.add(new_particles,batchdata)
     fn = theano.function([], [],
@@ -877,7 +907,10 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=
     #rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
     if algo == 'Gibbs':
         sampler = Gibbs.alloc(rbm, rng)
-        new_particles  = rbm.gibbs_step_for_v(sampler.particles, sampler.s_rng,border_mask=True, sampling_for_v=sampling_for_v)
+        new_particles  = rbm.gibbs_step_for_v(
+                        sampler.particles, sampler.s_rng,
+                        border_mask=True, sampling_for_v=sampling_for_v,
+                        With_fast=False)
         new_particles = tensor.clip(new_particles,
                 rbm.conf['particles_min'],
                 rbm.conf['particles_max'])
@@ -963,7 +996,7 @@ def main0(rval_doc):
         n_img_cols = 98
         n_img_channels=1
   	batch_x = Brodatz_op(batch_range,
-  	                     '../../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
@@ -1071,7 +1104,7 @@ def main_train():
             train_iters=30000,
             base_lr_per_example=0.00001,
             conv_lr_coef=1.0,
-            batchsize=32,
+            batchsize=64,
             n_filters_hs=32,
             v_prec_init=10., # this should increase with n_filters_hs?
             v_prec_lower_limit = 10.,
@@ -1089,7 +1122,7 @@ def main_train():
             increase_steps_sampling = False,
             border_mask=True,
             sampling_for_v=True,
-            penalty_for_fast_parameters = 0.05
+            penalty_for_fast_parameters = 0.2
             )))
     
 
