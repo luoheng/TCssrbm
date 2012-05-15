@@ -996,13 +996,12 @@ def main0(rval_doc):
     
     
        
-    if conf['dataset']=='Brodatz':
-        n_examples = conf['batchsize']   #64
-        n_img_rows = 98
-        n_img_cols = 98
-        n_img_channels=1
-  	batch_x = Brodatz_op(batch_range,
-  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+    n_examples = conf['batchsize']   #64
+    n_img_rows = 98
+    n_img_cols = 98
+    n_img_channels=1
+    batch_x = Brodatz_op(batch_range,
+  	                     conf['dataset'],   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
@@ -1011,10 +1010,7 @@ def main0(rval_doc):
   	                     batchdata_size=n_examples,
                              rescale=1.0
   	                     )	
-    else:
-        raise ValueError('dataset', conf['dataset'])
-     
-       
+           
     rbm = RBM.alloc(
             conf,
             image_shape=(        
@@ -1093,7 +1089,7 @@ def main_train():
     print 'start main_train'
     main0(dict(
         conf=dict(
-            dataset='Brodatz',
+            dataset='../../Brodatz/D6.gif',
             chain_reset_prob=.0,#approx CD-50
             unnatural_grad=False,
             alpha_logdomain=True,
