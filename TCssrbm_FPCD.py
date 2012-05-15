@@ -20,6 +20,8 @@ from unshared_conv_diagonally import FilterActs
 from unshared_conv_diagonally import WeightActs
 from unshared_conv_diagonally import ImgActs
 from Brodatz import Brodatz_op
+from Brodatz import Brodatz
+from CrossCorrelation import CrossCorrelation
 
 #import scipy.io
 import os
@@ -843,7 +845,7 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False, sam
     n_img_cols = 98
     n_img_channels=1
     batch_x = Brodatz_op(batch_range,
-  	                     '../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     '../../Brodatz/D6.gif',   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
@@ -902,14 +904,15 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False, sam
 
 def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=5000, n_files=10, sampling_for_v=False):
     rbm = cPickle.load(open(filename))
-    #rbm.v_shape = (2,1,2045,2045)
-    #rbm.out_conv_hs_shape = FilterActs.infer_shape_without_instance(rbm.v_shape,rbm.filters_hs_shape)
-    #rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
+    n_samples = 16
+    rbm.v_shape = (n_samples,1,120,120)
+    rbm.out_conv_hs_shape = FilterActs.infer_shape_without_instance(rbm.v_shape,rbm.filters_hs_shape)
+    rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
     if algo == 'Gibbs':
         sampler = Gibbs.alloc(rbm, rng)
         new_particles  = rbm.gibbs_step_for_v(
                         sampler.particles, sampler.s_rng,
-                        border_mask=True, sampling_for_v=sampling_for_v,
+                        border_mask=False, sampling_for_v=sampling_for_v,
                         With_fast=False)
         new_particles = tensor.clip(new_particles,
                 rbm.conf['particles_min'],
@@ -928,23 +931,42 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=
                 rbm.conf['particles_max'])
         fn = theano.function([], [], updates=ups)
         particles = sampler.positions
-
+    
+    B_texture = Brodatz('../Brodatz/D6.gif', patch_shape=(1,98,98), 
+                         noise_concelling=0.0, seed=3322 ,batchdata_size=1, rescale=1.0)
+    shp = B_texture.test_img.shape
+    img = numpy.zeros((1,)+shp)
+    temp_img = numpy.asarray(B_texture.test_img, dtype='uint8')
+    img[0,] = temp_img
+    Image.fromarray(temp_img,'L').save('test_img.png')    
     for i in xrange(burn_in):
-	print i	
+	if i% 20 ==0:
+	    print i	
         #savename = '%s_Large_sample_burn_%04i.png'%(filename,i)        	
 	#tmp = particles.get_value(borrow=True)[0,0,11:363,11:363]
 	#w = numpy.asarray(255 * (tmp - tmp.min()) / (tmp.max() - tmp.min() + 1e-6), dtype='uint8')
-	#Image.fromarray(w,'L').save(savename)	
+	#Image.fromarray(w,'L').save(savename)		
 	savename = '%s_sample_burn_%04i.png'%(filename,i)
-	if i % 100 == 0:
+	if i % 100 == 0 and i!=0:
 	    print 'saving'
             Image.fromarray(
                 tile_conv_weights(
-                    particles.get_value(borrow=True),
+                    particles.get_value(borrow=True)[:,:,11:110,11:110],
                     flip=False,scale_each=True),
                 'L').save(savename)	
-        fn()
-
+            samples = particles.get_value(borrow=True)[:,:,11:110,11:110]
+            for samples_index in xrange(n_samples):
+                temp_samples = samples[samples_index,]
+                temp_samples = numpy.asarray(255 * (temp_samples - temp_samples.min()) / \
+                                   (temp_samples.max() - temp_samples.min() + 1e-6), dtype='uint8')
+                samples[samples_index,]= temp_samples
+            CC = CrossCorrelation(img,samples,
+                       window_size=19, n_patches_of_samples=1)
+	    aaa = CC.TSS()
+	    print aaa.mean(),aaa.std()
+        fn()   
+    
+    """
     for n in xrange(n_files):
         for i in xrange(save_interval):
             fn()
@@ -955,7 +977,7 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=
                     particles.get_value(borrow=True),
                     flip=False,scale_each=True),
                 'L').save(savename)
-                
+    """            
 def main_print_status(filename, algo='Gibbs', rng=777888, burn_in=500, save_interval=500, n_files=1):
     def print_minmax(msg, x):
         assert numpy.all(numpy.isfinite(x))
@@ -1082,6 +1104,7 @@ def main0(rval_doc):
         iter += 1
 
 
+
 def main_train():
     print 'start main_train'
     main0(dict(
@@ -1090,7 +1113,7 @@ def main_train():
             chain_reset_prob=.0,#approx CD-50
             unnatural_grad=False,
             alpha_logdomain=True,
-            conv_alpha0=20.,
+            conv_alpha0=10.,
             global_alpha0=10.,
             alpha_min=1.,
             alpha_max=100.,
@@ -1122,7 +1145,7 @@ def main_train():
             increase_steps_sampling = False,
             border_mask=True,
             sampling_for_v=True,
-            penalty_for_fast_parameters = 0.2
+            penalty_for_fast_parameters = 0.05
             )))
     
 

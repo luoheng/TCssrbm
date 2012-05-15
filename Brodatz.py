@@ -34,10 +34,10 @@ class Brodatz(object):
         image = image.resize((int(image_rows/2),int(image_cols/2)))
         img_array = numpy.asarray(image, dtype=floatX)
         self.training_img = numpy.zeros((int(image_rows/4),int(image_cols/2)),dtype=floatX)
-        #self.test_img = numpy.zeros((int(image_rows/4),int(image_cols/2)))
+        self.test_img = numpy.zeros((int(image_rows/4),int(image_cols/2)))
         self.training_img = img_array[0:int(image_rows/4),:]
-        #self.test_img = img_array[int(image_rows/4):,:]
-        
+        self.test_img = img_array[int(image_rows/4):,:]
+                
         patch_channels, patch_rows, patch_cols = patch_shape        
         assert patch_rows < int(image_rows/4)  
         assert patch_cols < int(image_cols/2) 
@@ -45,7 +45,11 @@ class Brodatz(object):
         
         self.training_img = self.training_img - self.training_img.mean()
         self.training_img = self.training_img/(rescale*self.training_img.std()+self.ncc)
+        
+        #self.test_img = self.test_img - self.test_img.mean()
+        #self.test_img = self.test_img/(rescale*self.test_img.std()+self.ncc)
         print 'the std of the training data is:%f' %self.training_img.std() 
+        #print 'the std of the test data is:%f' %self.test_img.std() 
     #@staticmethod   
     def extract_random_patches(self):
         N = self.batchdata_size
