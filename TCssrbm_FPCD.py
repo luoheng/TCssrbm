@@ -214,7 +214,7 @@ class RBM(object):
         self.v_prec = sharedX(v_prec, 'var_v_prec')        
         self.v_prec_fast = sharedX(0.0, 'var_v_prec_fast')        
         self.v_prec_lower_limit = sharedX(v_prec_lower_limit, 'v_prec_lower_limit')
-        
+        self.v_prec_fast_lower_limit = sharedX(conf['v_prec_fast_lower_limit'], 'v_prec_fast_lower_limit')
         
         self.filters_hs = sharedX(rng.randn(*filters_hs_shape) * filters_irange , 'filters_hs')  
         self.filters_hs_fast = sharedX(numpy.zeros(filters_hs_shape), 'filters_hs_fast') 
@@ -657,7 +657,7 @@ class Trainer(object): # updates of this object implement training
         else:
             old_particles = self.sampler.particles
         if conf['increase_steps_sampling']:
-	    steps_sampling = self.iteration.get_value() / 1000 + 1
+	    steps_sampling = self.iteration.get_value() / 1000 + self.conf['constant_steps_sampling']
 	else:
 	    steps_sampling = self.conf['constant_steps_sampling']
 	#print steps_sampling        
@@ -720,8 +720,8 @@ class Trainer(object): # updates of this object implement training
 	           
         new_v_prec_fast = ups[self.rbm.v_prec_fast]        
         ups[self.rbm.v_prec_fast] = tensor.switch(
-                new_v_prec_fast<self.rbm.v_prec_lower_limit,
-                self.rbm.v_prec_lower_limit,
+                new_v_prec_fast<self.rbm.v_prec_fast_lower_limit,
+                self.rbm.v_prec_fast_lower_limit,
                 new_v_prec_fast)
                         
         if self.conf['alpha_min'] < self.conf['alpha_max']:
@@ -1072,7 +1072,8 @@ def main0(rval_doc):
     iter = 0
     while trainer.annealing_coef.get_value()>=0: #
         dummy = train_fn(iter) #
-        trainer.print_status()
+        if iter % 10 == 0:
+	    trainer.print_status()
 	if iter % 1000 == 0:
             rbm.dump_to_file(os.path.join(_temp_data_path_,'rbm_%06i.pkl'%iter))
         if iter <= 1000 and not (iter % 100): #
@@ -1111,6 +1112,7 @@ def main_train():
             n_filters_hs=32,
             v_prec_init=10., # this should increase with n_filters_hs?
             v_prec_lower_limit = 10.,
+            v_prec_fast_lower_limit = 0.,
 	    filters_hs_size=11,
             filters_irange=.01,
             zero_out_interior_weights=False,
@@ -1121,8 +1123,8 @@ def main_train():
             #problem_term_vWWv_weight = 0.,
             #problem_term_vIv_weight = 0.,
             n_tiled_conv_offset_diagonally = 1,
-            constant_steps_sampling = 1,         
-            increase_steps_sampling = False,
+            constant_steps_sampling = 3,         
+            increase_steps_sampling = True,
             border_mask=True,
             sampling_for_v=True,
             penalty_for_fast_parameters = 0.1
