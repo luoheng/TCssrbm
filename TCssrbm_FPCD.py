@@ -288,7 +288,7 @@ class RBM(object):
                     
         return self
 
-    def get_conv_alpha(self,With_fast=True):
+    def get_conv_alpha(self,With_fast):
         if With_fast:
 	    if self.conf['alpha_logdomain']:
                 rval = tensor.exp(self.conv_alpha+self.conv_alpha_fast)
@@ -302,7 +302,7 @@ class RBM(object):
             else:
                 return self.conv_alpha
                 
-    def get_conv_lambda(self,With_fast=True):
+    def get_conv_lambda(self,With_fast):
         if With_fast:
 	    if self.conf["lambda_logdomain"]:
                 L = tensor.exp(self.conv_lambda+self.conv_lambda_fast)
@@ -314,32 +314,32 @@ class RBM(object):
             else:
                 L = self.conv_lambda
         return L
-    def get_v_prec(self,With_fast=True):
+    def get_v_prec(self,With_fast):
         if With_fast:
 	    return self.v_prec+self.v_prec_fast
 	else:
 	    return self.v_prec	    
-    def get_filters_hs(self,With_fast=True):
+    def get_filters_hs(self,With_fast):
         if With_fast:
 	    return self.filters_hs+self.filters_hs_fast
 	else:
 	    return self.filters_hs
-    def get_conv_bias_hs(self,With_fast=True):
+    def get_conv_bias_hs(self,With_fast):
         if With_fast:
 	    return self.conv_bias_hs+self.conv_bias_hs_fast
 	else:
 	    return self.conv_bias_hs
-    def get_conv_mu(self,With_fast=True):
+    def get_conv_mu(self,With_fast):
         if With_fast:
 	    return self.conv_mu+self.conv_mu_fast
 	else:
 	    return self.conv_mu
         
-    def conv_problem_term(self, v, With_fast=True):
+    def conv_problem_term(self, v, With_fast):
         L = self.get_conv_lambda(With_fast)
         vLv = self.convdot(v*v, L)        
         return vLv
-    def conv_problem_term_T(self, h, With_fast=True):
+    def conv_problem_term_T(self, h, With_fast):
         L = self.get_conv_lambda(With_fast)
         #W = self.filters_hs
         #alpha = self.get_conv_alpha()
@@ -354,7 +354,7 @@ class RBM(object):
 
     #####################
     # spike-and-slab convolutional hidden units
-    def mean_convhs_h_given_v(self, v, With_fast=True):
+    def mean_convhs_h_given_v(self, v, With_fast):
         """Return the mean of binary-valued hidden units h, given v
         """
         alpha = self.get_conv_alpha(With_fast)
@@ -369,7 +369,7 @@ class RBM(object):
                     -0.5*self.conv_problem_term(v,With_fast)))
         return rval
 
-    def mean_var_convhs_s_given_v(self, v, With_fast=True):
+    def mean_var_convhs_s_given_v(self, v, With_fast):
         """
         Return mu (N,K,B) and sigma (N,K,K) for latent s variable.
 
@@ -384,7 +384,7 @@ class RBM(object):
 
     #####################
     # visible units
-    def mean_var_v_given_h_s(self, convhs_h, convhs_s, With_fast=True):
+    def mean_var_v_given_h_s(self, convhs_h, convhs_s, With_fast):
         shF = self.convdot_T(self.get_filters_hs(With_fast), convhs_h*convhs_s)        
         conv_hL = self.conv_problem_term_T(convhs_h,With_fast)
         contrib = shF               
@@ -393,7 +393,7 @@ class RBM(object):
         return mu, sigma_sq
 
 
-    def all_hidden_h_means_given_v(self, v, With_fast=True):
+    def all_hidden_h_means_given_v(self, v, With_fast):
         mean_convhs_h = self.mean_convhs_h_given_v(v,With_fast)
         return mean_convhs_h
 
@@ -450,54 +450,38 @@ class RBM(object):
             return vv_sample
                
    
-    def free_energy_given_v(self, v, With_fast=True):
+    def free_energy_given_v(self, v, With_fast=False):
         # This is accurate up to a multiplicative constant
         # because I dropped some terms involving 2pi
-        if self.conf['alpha_logdomain']:
-            alpha = tensor.exp(self.conv_alpha)	    
-        else:
-            alpha = self.conv_alpha              
-        W = self.filters_hs
-        
+        alpha = self.get_conv_alpha(With_fast)	    
+        W = self.get_filters_hs(With_fast)        
         vW = self.convdot(v, W)
         vW_broadcastable = vW.dimshuffle(0,3,4,1,2)
         #change 64 x 11 x 32 x 8 x 8 to 64 x 8 x 8 x 11 x 32 for broadcasting
-        pre_convhs_h_parts = self.conv_mu*vW_broadcastable + self.conv_bias_hs +  0.5*(vW_broadcastable**2)/alpha
+        pre_convhs_h_parts = self.get_conv_mu(With_fast)*vW_broadcastable + self.get_conv_bias_hs(With_fast) +  0.5*(vW_broadcastable**2)/alpha
                 
 	pre_convhs_h = tensor.add(
                     pre_convhs_h_parts.dimshuffle(0,3,4,1,2),
-                   -0.5*self.conv_problem_term(v))
+                   -0.5*self.conv_problem_term(v,With_fast))
         rval = tensor.add(
                 -tensor.sum(nnet.softplus(pre_convhs_h),axis=[1,2,3,4]), #the shape of pre_convhs_h: 64 x 11 x 32 x 8 x 8
-                0.5 * tensor.sum(self.v_prec * (v**2), axis=[1,2,3]), #shape: 64 x 1 x 98 x 98 
+                0.5 * tensor.sum(self.get_v_prec(With_fast) * (v**2), axis=[1,2,3]), #shape: 64 x 1 x 98 x 98 
                 )
         assert rval.ndim==1
         return rval
         
-    def free_energy_given_v_minus(self, v_minus):
-        # This is accurate up to a multiplicative constant
-        # because I dropped some terms involving 2pi
-        def pre_sigmoid(x):
-            assert x.owner and x.owner.op == nnet.sigmoid
-            return x.owner.inputs[0]
-
-        pre_convhs_h = pre_sigmoid(self.mean_convhs_h_given_v(v_minus))
-        rval = tensor.add(
-                -tensor.sum(nnet.softplus(pre_convhs_h),axis=[1,2,3,4]), #the shape of pre_convhs_h: 64 x 11 x 32 x 8 x 8
-                0.5 * tensor.sum(self.get_v_prec() * (v_minus**2), axis=[1,2,3]), #shape: 64 x 1 x 98 x 98 
-                )
-        assert rval.ndim==1
-        return rval    
 
     def cd_updates(self, pos_v, neg_v, stepsizes, other_cost=None):      
-        cost=(self.free_energy_given_v(pos_v) - self.free_energy_given_v_minus(neg_v)).sum()
+        cost=(self.free_energy_given_v(pos_v,With_fast=False) - self.free_energy_given_v(neg_v,With_fast=False)).sum()
         if other_cost:
 	    cost = cost + other_cost
 	grads = theano.tensor.grad(cost,
-		wrt=self.params()+self.params_fast(),
+		#wrt=self.params()+self.params_fast(),
+		wrt=self.params(),
 		consider_constant=[pos_v]+[neg_v])
-       
-        assert len(stepsizes)==len(grads)
+        
+        print len(stepsizes),len(grads+grads)
+        assert len(stepsizes)==len(grads+grads)
 
         if self.conf['unnatural_grad']:
             sgd_updates = unnatural_sgd_updates
@@ -506,7 +490,7 @@ class RBM(object):
         rval = dict(
                 sgd_updates(
                     self.params()+self.params_fast(),
-                    grads,
+                    grads+grads,
                     stepsizes=stepsizes))
         """            
         if 0:
@@ -639,7 +623,7 @@ class Trainer(object): # updates of this object implement training
         ups[self.annealing_coef] = annealing_coef
 
         conv_h = self.rbm.all_hidden_h_means_given_v(
-                self.visible_batch)
+                self.visible_batch, With_fast=True)
         
         
         new_conv_h_means = 0.1 * conv_h.mean(axis=0) + .9*self.conv_h_means
@@ -733,7 +717,7 @@ class Trainer(object): # updates of this object implement training
 	    new_p_fast = ups[p_fast]
 	    new_p_fast = new_p_fast - weight_decay*p_fast
 	    ups[p_fast] = new_p_fast
-	"""           
+	           
         new_v_prec_fast = ups[self.rbm.v_prec_fast]        
         ups[self.rbm.v_prec_fast] = tensor.switch(
                 new_v_prec_fast<self.rbm.v_prec_lower_limit,
@@ -764,7 +748,7 @@ class Trainer(object): # updates of this object implement training
                         self.conf['lambda_min'],
                         self.conf['lambda_max'])                
                         
-        """                
+                        
         return ups
 
     def save_weights_to_files(self, pattern='iter_%05i'):
@@ -1145,7 +1129,7 @@ def main_train():
             increase_steps_sampling = False,
             border_mask=True,
             sampling_for_v=True,
-            penalty_for_fast_parameters = 0.05
+            penalty_for_fast_parameters = 0.1
             )))
     
 
