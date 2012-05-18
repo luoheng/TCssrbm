@@ -641,12 +641,17 @@ class Trainer(object): # updates of this object implement training
                     pos_v=self.visible_batch,
                     neg_v=self.sampler.particles,
                     stepsizes=[annealing_coef*lr for lr in self.learn_rates]+[lr_fast for lr_fast in self.learn_rates_fast]))
-        
+        if conf['increase_steps_sampling']:
+	    steps_sampling = self.iteration.get_value() / 1000 + self.conf['constant_steps_sampling']
+	else:
+	    steps_sampling = self.conf['constant_steps_sampling']
+	    
         if conf['chain_reset_prob']:
             # advance the 'negative-phase' chain
             nois_batch = self.sampler.s_rng.normal(size=self.rbm.v_shape)
-            resets = self.sampler.s_rng.uniform(size=(conf['batchsize'],))<conf['chain_reset_prob']
-            old_particles = tensor.switch(resets.dimshuffle(0,'x','x','x'),
+            steps_sampling = steps_sampling + conf['chain_reset_burn_in']
+            resets = self.sampler.s_rng.uniform()<conf['chain_reset_prob']
+            old_particles = tensor.switch(resets.dimshuffle('x','x','x','x'),
                     nois_batch,   # reset the chain
                     self.sampler.particles,  #continue chain
                     )
@@ -656,10 +661,7 @@ class Trainer(object): # updates of this object implement training
             #        )
         else:
             old_particles = self.sampler.particles
-        if conf['increase_steps_sampling']:
-	    steps_sampling = self.iteration.get_value() / 1000 + self.conf['constant_steps_sampling']
-	else:
-	    steps_sampling = self.conf['constant_steps_sampling']
+        
 	#print steps_sampling        
         tmp_particles = old_particles    
         for step in xrange(int(steps_sampling)):
@@ -916,7 +918,7 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=
         fn = theano.function([], [], updates=ups)
         particles = sampler.positions
     
-    B_texture = Brodatz('../Brodatz/D6.gif', patch_shape=(1,98,98), 
+    B_texture = Brodatz('../../Brodatz/D6.gif', patch_shape=(1,98,98), 
                          noise_concelling=0.0, seed=3322 ,batchdata_size=1, rescale=1.0)
     shp = B_texture.test_img.shape
     img = numpy.zeros((1,)+shp)
@@ -1091,13 +1093,16 @@ def main_train():
     main0(dict(
         conf=dict(
             dataset='../../Brodatz/D6.gif',
-            chain_reset_prob=.0,#approx CD-50
+            data_rescale = 2, #2 (4.0/3) means rescale images from 640*640 to 320*320 
+            chain_reset_prob=0.0001,#reset for approximately every 1000 iterations
+            #chain_reset_iterations=1000,
+            chain_reset_burn_in=20,
             unnatural_grad=False,
             alpha_logdomain=True,
-            conv_alpha0=10.,
+            conv_alpha0=100.,
             global_alpha0=10.,
             alpha_min=1.,
-            alpha_max=100.,
+            alpha_max=1000.,
             lambda_min=0.,
             lambda_max=10.,
             lambda0=0.001,
@@ -1105,7 +1110,7 @@ def main_train():
             conv_bias0=0.0, 
             conv_bias_irange=0.0,#conv_bias0 +- this
             conv_mu0 = 1.0,
-            train_iters=30000,
+            train_iters=40000,
             base_lr_per_example=0.00001,
             conv_lr_coef=1.0,
             batchsize=64,
@@ -1123,11 +1128,11 @@ def main_train():
             #problem_term_vWWv_weight = 0.,
             #problem_term_vIv_weight = 0.,
             n_tiled_conv_offset_diagonally = 1,
-            constant_steps_sampling = 3,         
+            constant_steps_sampling = 2,         
             increase_steps_sampling = True,
             border_mask=True,
             sampling_for_v=True,
-            penalty_for_fast_parameters = 0.1
+            penalty_for_fast_parameters = 0.05
             )))
     
 
