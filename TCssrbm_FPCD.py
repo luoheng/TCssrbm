@@ -649,7 +649,7 @@ class Trainer(object): # updates of this object implement training
         if conf['chain_reset_prob']:
             # advance the 'negative-phase' chain
             nois_batch = self.sampler.s_rng.normal(size=self.rbm.v_shape)
-            steps_sampling = steps_sampling + conf['chain_reset_burn_in']
+            #steps_sampling = steps_sampling + conf['chain_reset_burn_in']
             resets = self.sampler.s_rng.uniform()<conf['chain_reset_prob']
             old_particles = tensor.switch(resets.dimshuffle('x','x','x','x'),
                     nois_batch,   # reset the chain
@@ -888,9 +888,9 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False, sam
                 'L').save(savename)
         fn()
 
-def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=5000, n_files=10, sampling_for_v=False):
+def main_sample(filename, algo='Gibbs', rng=777888, burn_in=50001, save_interval=5000, n_files=10, sampling_for_v=False):
     rbm = cPickle.load(open(filename))
-    n_samples = 16
+    n_samples = 128
     rbm.v_shape = (n_samples,1,120,120)
     rbm.out_conv_hs_shape = FilterActs.infer_shape_without_instance(rbm.v_shape,rbm.filters_hs_shape)
     rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
@@ -918,22 +918,22 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=5000, save_interval=
         fn = theano.function([], [], updates=ups)
         particles = sampler.positions
     
-    B_texture = Brodatz('../../Brodatz/D6.gif', patch_shape=(1,98,98), 
-                         noise_concelling=0.0, seed=3322 ,batchdata_size=1, rescale=1.0)
+    B_texture = Brodatz('../../../Brodatz/D6.gif', patch_shape=(1,98,98), 
+                         noise_concelling=0.0, seed=3322 ,batchdata_size=1, rescale=1.0, rescale_size=2)
     shp = B_texture.test_img.shape
     img = numpy.zeros((1,)+shp)
     temp_img = numpy.asarray(B_texture.test_img, dtype='uint8')
     img[0,] = temp_img
     Image.fromarray(temp_img,'L').save('test_img.png')    
     for i in xrange(burn_in):
-	if i% 20 ==0:
+	if i% 100 ==0:
 	    print i	
         #savename = '%s_Large_sample_burn_%04i.png'%(filename,i)        	
 	#tmp = particles.get_value(borrow=True)[0,0,11:363,11:363]
 	#w = numpy.asarray(255 * (tmp - tmp.min()) / (tmp.max() - tmp.min() + 1e-6), dtype='uint8')
 	#Image.fromarray(w,'L').save(savename)		
 	savename = '%s_sample_burn_%04i.png'%(filename,i)
-	if i % 100 == 0 and i!=0:
+	if i % 1000 == 0 and i!=0:
 	    print 'saving'
             Image.fromarray(
                 tile_conv_weights(
@@ -1094,7 +1094,7 @@ def main_train():
         conf=dict(
             dataset='../../Brodatz/D6.gif',
             data_rescale = 2, #2 (4.0/3) means rescale images from 640*640 to 320*320 
-            chain_reset_prob=0.0001,#reset for approximately every 1000 iterations
+            chain_reset_prob=0.001,#reset for approximately every 1000 iterations
             #chain_reset_iterations=1000,
             chain_reset_burn_in=20,
             unnatural_grad=False,
@@ -1128,7 +1128,7 @@ def main_train():
             #problem_term_vWWv_weight = 0.,
             #problem_term_vIv_weight = 0.,
             n_tiled_conv_offset_diagonally = 1,
-            constant_steps_sampling = 2,         
+            constant_steps_sampling = 5,         
             increase_steps_sampling = True,
             border_mask=True,
             sampling_for_v=True,
