@@ -943,8 +943,8 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=50001, save_interval
             samples = particles.get_value(borrow=True)[:,:,11:110,11:110]
             for samples_index in xrange(n_samples):
                 temp_samples = samples[samples_index,]
-                temp_samples = numpy.asarray(255 * (temp_samples - temp_samples.min()) / \
-                                   (temp_samples.max() - temp_samples.min() + 1e-6), dtype='uint8')
+                #temp_samples = numpy.asarray(255 * (temp_samples - temp_samples.min()) / \
+                #                   (temp_samples.max() - temp_samples.min() + 1e-6), dtype='uint8')
                 samples[samples_index,]= temp_samples
             CC = CrossCorrelation(img,samples,
                        window_size=19, n_patches_of_samples=1)

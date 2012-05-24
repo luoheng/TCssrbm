@@ -3,8 +3,10 @@ import numpy
 class CrossCorrelation(object):
     
     def __init__(self, test_image, samples, window_size, seed=98987, n_patches_of_samples=0):
-        self.test_image = test_image
-        self.samples = samples
+        self.test_image = numpy.asarray(255 * (test_image - test_image.min()) / \
+                                   (test_image.max() - test_image.min() + 1e-6), dtype='uint8')        
+        self.samples = numpy.asarray(255 * (samples - samples.min()) / \
+                                   (samples.max() - samples.min() + 1e-6), dtype='uint8')
         #assert self.test_image.dtype == self.samples.dtype
         self.window_size = window_size
         self.rng = numpy.random.RandomState(seed)
