@@ -1010,7 +1010,8 @@ def main0(rval_doc):
   	                     noise_concelling=0., 
   	                     seed=3322, 
   	                     batchdata_size=n_examples,
-                             rescale=1.0
+                             rescale=1.0,
+                             rescale_size=conf['data_rescale']
   	                     )	
            
     rbm = RBM.alloc(
