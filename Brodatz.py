@@ -5,7 +5,16 @@ from protocol_ import TensorFnDataset
 
 floatX=theano.config.floatX
 
-def Brodatz_op(s_idx, filename, patch_shape=(1,98,98), noise_concelling=0.0, seed=3322, batchdata_size=64, rescale=1.0, rescale_size=(2,)):
+def Brodatz_op(s_idx, 
+               filename, 
+               patch_shape=(1,98,98), 
+               noise_concelling=0.0, 
+               seed=3322, 
+               batchdata_size=64, 
+               rescale=1.0, 
+               rescale_size=(2,),
+               validation=False
+               ):
     """Return symbolic Brodatz_images[s_idx]
 
     If s_idx is a scalar, the return value is a tensor3 of shape 1,98,98.
@@ -13,7 +22,14 @@ def Brodatz_op(s_idx, filename, patch_shape=(1,98,98), noise_concelling=0.0, see
     is a tensor4 of shape N,1,98,98.
     """
     assert len(filename)==len(rescale_size)
-    ob = Brodatz(filename, patch_shape, noise_concelling, seed, batchdata_size, rescale, rescale_size)
+    ob = Brodatz(filename, 
+                 patch_shape, 
+                 noise_concelling, 
+                 seed, 
+                 batchdata_size, 
+                 rescale, 
+                 rescale_size, 
+                 validation)
     fn = ob.extract_random_patches
     op = TensorFnDataset(floatX,
             bcast=(False, False, False),
@@ -23,7 +39,11 @@ def Brodatz_op(s_idx, filename, patch_shape=(1,98,98), noise_concelling=0.0, see
     
 class Brodatz(object):
     
-    def __init__(self, filename, patch_shape, noise_concelling, seed, batchdata_size, rescale, rescale_size):        
+    def __init__(self, filename, 
+                 patch_shape, noise_concelling, 
+                 seed, batchdata_size, rescale, 
+                 rescale_size,
+                 validation=False):        
         self.patch_shape = patch_shape
         self.filename = filename
         self.ncc = noise_concelling
@@ -32,19 +52,40 @@ class Brodatz(object):
         self.training_img = []
         self.test_img = []        
         f_index = 0
+        patch_channels, patch_rows, patch_cols = patch_shape 
         for f_name in self.filename:
 	    image = Image.open(f_name)
 	    image_rows, image_cols = image.size
 	    image = image.resize((int(image_rows/rescale_size[f_index]),int(image_cols/rescale_size[f_index])),Image.BICUBIC)
-	    img_array = numpy.asarray(image, dtype=floatX)
-            training_img = numpy.zeros((int(image_rows/(2*rescale_size[f_index])),int(image_cols/rescale_size[f_index])),dtype=floatX)
-            test_img = numpy.zeros((int(image_rows/(2*rescale_size[f_index])),int(image_cols/rescale_size[f_index])))
-            training_img = img_array[0:int(image_rows/(2*rescale_size[f_index])),:]
-            test_img = img_array[int(image_rows/(2*rescale_size[f_index])):,:]
-               
-	    patch_channels, patch_rows, patch_cols = patch_shape        
-	    assert patch_rows < int(image_rows/(2*rescale_size[f_index]))  
-	    assert patch_cols < int(image_cols/(rescale_size[f_index])) 
+	    img_array = numpy.asarray(image, dtype=floatX)           
+                        
+            if validation:
+		# The model is in validation mode, the training set is going to be the 2/3 of
+		# the top half of the image and the testing set is going to be the remaining third
+		train_rows = int(image_rows/(2*rescale_size[f_index]))
+		train_cols = int(image_cols/rescale_size[f_index]*2/3)
+		training_img = numpy.zeros((train_rows,train_cols),dtype=floatX)
+		test_rows = train_rows
+		test_cols = int(image_cols/rescale_size[f_index]*1/3)
+		test_img = numpy.zeros((test_rows,test_cols))
+		training_img = img_array[0:train_rows,0:train_cols]
+		test_img = img_array[train_rows:,train_cols:]		
+		assert patch_rows < train_rows  
+		assert patch_cols < train_cols 
+	    else:
+		# The model is in test mode, the training set is going to be the whole
+		# top half of the image and the testing set is going to be the bottom half     
+		training_img = numpy.zeros((int(image_rows/(2*rescale_size[f_index])),int(image_cols/rescale_size[f_index])),dtype=floatX)
+		test_img = numpy.zeros((int(image_rows/(2*rescale_size[f_index])),int(image_cols/rescale_size[f_index])))
+		training_img = img_array[0:int(image_rows/(2*rescale_size[f_index])),:]
+		test_img = img_array[int(image_rows/(2*rescale_size[f_index])):,:]	
+		assert patch_rows < int(image_rows/(2*rescale_size[f_index]))  
+		assert patch_cols < int(image_cols/(rescale_size[f_index])) 
+        
+	    print "BrodatzOp : using a validation set : " + str(validation)
+	    print "BrodatzOp : the training image size is : " + str(training_img.shape)
+	    print "BrodatzOp : the test image size is : " + str(test_img.shape)           
+	    
 	    assert patch_channels == 1        
             self.training_img += [(training_img - training_img.mean())/(rescale*training_img.std()+self.ncc)]
             self.test_img += [test_img]        

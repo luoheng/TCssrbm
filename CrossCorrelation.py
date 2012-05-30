@@ -3,10 +3,10 @@ import numpy
 class CrossCorrelation(object):
     
     def __init__(self, test_image, samples, window_size, seed=98987, n_patches_of_samples=0):
-        self.test_image = numpy.asarray(255 * (test_image - test_image.min()) / \
-                                   (test_image.max() - test_image.min() + 1e-6), dtype='uint8')        
-        self.samples = numpy.asarray(255 * (samples - samples.min()) / \
-                                   (samples.max() - samples.min() + 1e-6), dtype='uint8')
+        self.test_image = numpy.asarray((test_image - test_image.min()) / \
+                                   (test_image.max() - test_image.min() + 1e-6))        
+        self.samples = numpy.asarray((samples - samples.min()) / \
+                                   (samples.max() - samples.min() + 1e-6))
         #assert self.test_image.dtype == self.samples.dtype
         self.window_size = window_size
         self.rng = numpy.random.RandomState(seed)
@@ -43,7 +43,7 @@ class CrossCorrelation(object):
 	for row_index in xrange(rows_test-rows_patches+1):
 	    for col_index in xrange(cols_test-cols_patches+1):
 		temp_patch = self.test_image[:,row_index:row_index+rows_patches,col_index:col_index+cols_patches]
-		rc_test_img[row_index,row_index,] = temp_patch/numpy.sqrt((temp_patch**2).sum())
+		rc_test_img[row_index,col_index,] = temp_patch/numpy.sqrt((temp_patch**2).sum())
 	
 	value_NCC = numpy.zeros((n_samples,n_patches,rows_test-rows_patches+1,cols_test-cols_patches+1))
 	for samples_index in xrange(n_samples):
@@ -51,7 +51,7 @@ class CrossCorrelation(object):
 	        rc_patch = self.patches[samples_index,n_patches_index,]
 		for row_index in xrange(rows_test-rows_patches+1):
 		    for col_index in xrange(cols_test-cols_patches+1):
-			temp_patch = rc_test_img[row_index,row_index,]		    
+			temp_patch = rc_test_img[row_index,col_index,]		    
 			value_NCC[samples_index,n_patches_index,row_index,col_index] = numpy.dot(
 			  rc_patch.reshape(1,channels_patches*rows_patches*cols_patches),
 			  temp_patch.reshape(1,channels_patches*rows_patches*cols_patches).T)

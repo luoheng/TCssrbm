@@ -29,7 +29,7 @@ from CrossCorrelation import CrossCorrelation
 import os
 _temp_data_path_ = '.'#'/Tmp/luoheng'
 
-if 0:
+if 1:
     print 'WARNING: using SLOW rng'
     RandomStreams = tensor.shared_randomstreams.RandomStreams
 else:
@@ -162,8 +162,9 @@ class bRBM(object):
             l2_conf,
             hs_shape,  # input dimensionality
             filters_shape,       
-            filters_irange,                
-            seed = 8923402            
+            filters_irange,
+            rbm,
+            seed = 8923402,            
             ):
  	print 'alloc rbm'
         rng = numpy.random.RandomState(seed)
@@ -195,7 +196,20 @@ class bRBM(object):
         
         h_bias_shape = self.hs_shape[1:]
         self.h_bias_shape = h_bias_shape
-        self.h_bias = sharedX(numpy.zeros(self.h_bias_shape), 'h_bias')        
+        
+        def conver_hs_bias(a,old_shp=rbm.conv_bias_hs_shape,new_shp=self.h_bias_shape):
+	    f_modules,n_filters = old_shp
+	    n_maps, n_hs_rows, n_hs_cols = new_shp
+	    assert f_modules*n_filters == n_maps
+	    b = a.reshape(f_modules*n_filters)
+	    rval = numpy.zeros(new_shp)
+	    for filters_index in xrange(f_modules*n_filters):
+		rval[filters_index,:,:]= b[filters_index]
+	    return rval
+	    
+        h_bias_ival = conver_hs_bias(rbm.conv_bias_hs.get_value())
+        self.h_bias = sharedX(h_bias_ival, 'h_bias')
+        #self.h_bias = sharedX(numpy.zeros(self.h_bias_shape), 'h_bias')        
         self.h_bias_fast = sharedX(numpy.zeros(self.h_bias_shape), 'h_bias_fast')     
         print 'self.h_bias_shape'
         print self.h_bias_shape                  
@@ -203,24 +217,27 @@ class bRBM(object):
         #filters
         self.filters = sharedX(rng.randn(*self.filters_shape) * filters_irange , 'filters_hs')  
         self.filters_fast = sharedX(numpy.zeros(filters_shape), 'filters_fast')        
-	
+        	
 	#mu        
         mu_shape = self.hs_shape[1:]
         self.mu_shape = mu_shape
-        mu_ival = numpy.zeros(mu_shape,dtype=floatX) + l2_conf['mu0']
+        #mu_ival = numpy.zeros(mu_shape,dtype=floatX) + l2_conf['mu0']
+	mu_ival = conver_hs_bias(rbm.conv_mu.get_value())
 	self.mu = sharedX(mu_ival, name='mu')
 	self.mu_fast = sharedX(numpy.zeros(mu_shape,dtype=floatX), name='mu_fast')
         print 'mu_shape'
         print self.mu_shape
         
         if l2_conf['alpha_logdomain']:
-            alpha_ival = numpy.zeros(self.mu_shape,dtype=floatX) + numpy.log(l2_conf['alpha0'])
+            #alpha_ival = numpy.zeros(self.mu_shape,dtype=floatX) + numpy.log(l2_conf['alpha0'])
+	    alpha_ival = conver_hs_bias(rbm.conv_alpha.get_value())
 	    self.alpha = sharedX(alpha_ival,'alpha')
 	    alpha_ival_fast = numpy.zeros(self.mu_shape,dtype=floatX)
 	    self.alpha_fast = sharedX(alpha_ival_fast, name='alpha_fast')
 	else:
+            alpha_ival = conver_hs_bias(rbm.conv_alpha.get_value())
             self.alpha = sharedX(
-                    numpy.zeros(self.mu_shape)+l2_conf['alpha0'],
+                    alpha_ival,
                     'alpha')
             self.alpha_fast = sharedX(
                     numpy.zeros(self.mu_shape), name='alpha_fast')            
@@ -304,8 +321,8 @@ class bRBM(object):
         h_bias = self.get_h_bias(With_fast)
         
         vW = self.convdot_T(v, W)
-        alpha_vW_mu = vW/alpha + mu - 0.5*(mu**2)
-        rval = nnet.sigmoid(tensor.add(0.5*alpha*(alpha_vW_mu**2),h_bias))                          
+        alpha_vW_mu = vW/alpha + mu 
+        rval = nnet.sigmoid(tensor.add(0.5*alpha*(alpha_vW_mu**2),h_bias,-0.5*alpha*(mu**2)))                          
         return rval
         
     #####################
@@ -318,7 +335,7 @@ class bRBM(object):
         W = self.get_filters(With_fast)
         
         vW = self.convdot_T(v, W)
-        rval = ((vW/alpha)+mu-0.5*(mu**2))*h        
+        rval = ((vW/alpha)+mu)*h        
         return rval, 1.0 / alpha
    
     #####################
@@ -450,8 +467,25 @@ class l2_Gibbs(object): # if there's a Sampler interface - this should support i
             rng.randn(*brbm.hs_shape),
             name='s_particles')
         self.h_particles = sharedX(
-            rng.randn(*brbm.hs_shape),
+            rng.randint(2,size=brbm.hs_shape),
             name='h_particles')    
+	#self.particles = sharedX(
+        #    numpy.zeros(rbm.v_shape),
+        #    name='particles')
+	self.s_rng = RandomStreams(seed)
+        return self
+
+class l2_Gibbs_for_genrating(object): # if there's a Sampler interface - this should support it
+    @classmethod
+    def alloc(cls, brbm, rng):
+        if not hasattr(rng, 'randn'):
+            rng = numpy.random.RandomState(rng)
+        self = cls()
+        seed=int(rng.randint(2**30))
+        self.brbm = brbm
+        self.v_particles = sharedX(
+            rng.randint(2,brbm.out_conv_v_shape),
+            name='v_particles')    
 	#self.particles = sharedX(
         #    numpy.zeros(rbm.v_shape),
         #    name='particles')
@@ -664,7 +698,73 @@ class Trainer(object): # updates of this object implement training
         print 'lr annealing coef:', self.annealing_coef.get_value()
 	#print 'reconstruction error:', self.recons_error.get_value()
 
-            
+def main_sample(layer1_filename, layer2_filename, algo='Gibbs', rng=777888, burn_in=50001, save_interval=5000, n_files=10, sampling_for_v=False):
+    rbm = cPickle.load(open(layer1_filename))
+    brbm = cPickle.load(open(layer2_filename))
+    sampler = l2_Gibbs.alloc(brbm, rng)
+    tmp_particles = brbm.gibbs_step_for_s_h(sampler.s_particles,
+                               sampler.h_particles, sampler.s_rng,
+                               sampling_for_s=brbm.l2_conf['sampling_for_s'])
+    s_tmp_particles, h_tmp_particles = tmp_particles 
+    n_batchsize, n_maps, n_hs_rows, n_hs_cols = brbm.hs_shape
+    icount, fmodules, filters_per_module, hrows, hcols = rbm.out_conv_hs_shape
+    assert n_maps==fmodules*filters_per_module
+    s_particles_5d = s_tmp_particles.reshape((icount, fmodules, filters_per_module, hrows, hcols))
+    h_particles_5d = h_tmp_particles.reshape((icount, fmodules, filters_per_module, hrows, hcols))
+    mean_var_samples = rbm.mean_var_v_given_h_s(s_particles_5d, h_particles_5d, False)
+    fn = theano.function([], mean_var_samples,
+                updates={sampler.s_particles: s_tmp_particles,
+                         sampler.h_particles: h_tmp_particles})
+                         
+    for i in xrange(burn_in):
+        print i
+        mean_var = fn()
+        mean_samples, var_samples = mean_var
+        if i % 20 == 0 and i!=0:
+	    print 'saving'
+	    savename = '%s_DBNsample_burn_%04i.png'%(layer1_filename+layer2_filename,i)
+	    Image.fromarray(
+                tile_conv_weights(
+                    mean_samples[:,:,11:88,11:88],
+                    flip=False,scale_each=True),
+                'L').save(savename)	    
+    """     
+    
+    B_texture = Brodatz('../../../Brodatz/D6.gif', patch_shape=(1,98,98), 
+                         noise_concelling=0.0, seed=3322 ,batchdata_size=1, rescale=1.0, rescale_size=2)
+    shp = B_texture.test_img.shape
+    img = numpy.zeros((1,)+shp)
+    temp_img = numpy.asarray(B_texture.test_img, dtype='uint8')
+    img[0,] = temp_img
+    Image.fromarray(temp_img,'L').save('test_img.png')    
+    for i in xrange(burn_in):
+	if i% 100 ==0:
+	    print i	
+        #savename = '%s_Large_sample_burn_%04i.png'%(filename,i)        	
+	#tmp = particles.get_value(borrow=True)[0,0,11:363,11:363]
+	#w = numpy.asarray(255 * (tmp - tmp.min()) / (tmp.max() - tmp.min() + 1e-6), dtype='uint8')
+	#Image.fromarray(w,'L').save(savename)		
+	savename = '%s_sample_burn_%04i.png'%(filename,i)
+	if i % 1000 == 0 and i!=0:
+	    print 'saving'
+            Image.fromarray(
+                tile_conv_weights(
+                    particles.get_value(borrow=True)[:,:,11:110,11:110],
+                    flip=False,scale_each=True),
+                'L').save(savename)	
+            samples = particles.get_value(borrow=True)[:,:,11:110,11:110]
+            for samples_index in xrange(n_samples):
+                temp_samples = samples[samples_index,]
+                #temp_samples = numpy.asarray(255 * (temp_samples - temp_samples.min()) / \
+                #                   (temp_samples.max() - temp_samples.min() + 1e-6), dtype='uint8')
+                samples[samples_index,]= temp_samples
+            CC = CrossCorrelation(img,samples,
+                       window_size=19, n_patches_of_samples=1)
+	    aaa = CC.TSS()
+	    print aaa.mean(),aaa.std()
+        fn()   
+    """
+
 def main0(rval_doc):
     l2_conf = rval_doc['l2_conf']
     rbm = cPickle.load(open(l2_conf['rbm_pkl']))
@@ -699,8 +799,12 @@ def main0(rval_doc):
                 l2_conf['filters_size']
                 ),            #fmodules(stride) x filters_per_modules x fcolors(channels) x frows x fcols
             filters_irange=l2_conf['filters_irange'],
+            rbm=rbm,
             )
-
+    
+    
+    
+    
     brbm.save_weights_to_grey_files('layer2_iter_0000')
 
     base_lr = l2_conf['base_lr_per_example']/batchsize
@@ -780,23 +884,23 @@ def main_train():
     print 'start main_train'
     main0(dict(        
        l2_conf=dict(
-            dataset='../Brodatz/D6.gif',
+            dataset='../../Brodatz/D6.gif',
             rbm_pkl='./rbm_040000.pkl', 
             #chain_reset_prob=0.0,#reset for approximately every 1000 iterations #we need scan for the burn in loop
             #chain_reset_iterations=100
             #chain_reset_burn_in=0,
             unnatural_grad=False,
-            alpha_logdomain=True,
+            alpha_logdomain=False,
             alpha0=10.,           
             alpha_min=1.,
             alpha_max=1000.,           
             mu0 = 1.0,
             train_iters=40000,
-            base_lr_per_example=0.0000001,
+            base_lr_per_example=0.00001,
             conv_lr_coef=1.0,
-            n_filters=50,            
+            n_filters=64,            
 	    filters_size=2,
-            filters_irange=.01,            
+            filters_irange=.001,            
             #sparsity_weight_conv=0,#numpy.float32(500),
             #sparsity_weight_global=0.,
             particles_min=-1000.,
@@ -804,7 +908,7 @@ def main_train():
             constant_steps_sampling = 1,         
             increase_steps_sampling = False,
             sampling_for_s=True,
-            penalty_for_fast_parameters = 0.05,
+            penalty_for_fast_parameters = 0.1,
             fast_weights = False
             )))
     
@@ -812,4 +916,6 @@ def main_train():
 if __name__ == '__main__':
     if sys.argv[1] == 'train':
         sys.exit(main_train())
+    if sys.argv[1] == 'sampling':
+	sys.exit(main_sample(sys.argv[2],sys.argv[3]))    
     

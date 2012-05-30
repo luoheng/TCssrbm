@@ -204,15 +204,15 @@ class RBM(object):
         self.out_conv_hs_shape = FilterActs.infer_shape_without_instance(self.v_shape,self.filters_hs_shape)        
         print 'self.out_conv_hs_shape'
         print self.out_conv_hs_shape
-        #conv_bias_hs_shape = self.out_conv_hs_shape[1:]
-        conv_bias_hs_shape = (n_filters_hs_modules, n_filters_hs_per_modules) 
+        conv_bias_hs_shape = self.out_conv_hs_shape[1:]
+        #conv_bias_hs_shape = (n_filters_hs_modules, n_filters_hs_per_modules) 
         self.conv_bias_hs_shape = conv_bias_hs_shape
         print 'self.conv_bias_hs_shape'
         print self.conv_bias_hs_shape
-        #self.v_prec = sharedX(numpy.zeros((n_channels, n_img_rows, n_img_cols))+v_prec, 'var_v_prec')
-        #self.v_prec_fast = sharedX(numpy.zeros((n_channels, n_img_rows, n_img_cols))+conf['v_prec_lower_limit'], 'var_v_prec_fast')
-        self.v_prec = sharedX(v_prec, 'var_v_prec')        
-        self.v_prec_fast = sharedX(0.0, 'var_v_prec_fast')        
+        self.v_prec = sharedX(numpy.zeros((n_channels, n_img_rows, n_img_cols))+v_prec, 'var_v_prec')
+        self.v_prec_fast = sharedX(numpy.zeros((n_channels, n_img_rows, n_img_cols))+conf['v_prec_lower_limit'], 'var_v_prec_fast')
+        #self.v_prec = sharedX(v_prec, 'var_v_prec')        
+        #self.v_prec_fast = sharedX(0.0, 'var_v_prec_fast')        
         self.v_prec_lower_limit = sharedX(v_prec_lower_limit, 'v_prec_lower_limit')
         self.v_prec_fast_lower_limit = sharedX(conf['v_prec_fast_lower_limit'], 'v_prec_fast_lower_limit')
         
@@ -360,12 +360,10 @@ class RBM(object):
         alpha = self.get_conv_alpha(With_fast)
         W = self.get_filters_hs(With_fast)
         vW = self.convdot(v, W)
-        vW_broadcastable = vW.dimshuffle(0,3,4,1,2)
-        #change 64 x 11 x 32 x 8 x 8 to 64 x 8 x 8 x 11 x 32 for broadcasting
-        pre_convhs_h_parts = self.get_conv_mu(With_fast)*vW_broadcastable + self.get_conv_bias_hs(With_fast) +  0.5*(vW_broadcastable**2)/alpha
+        pre_convhs_h_parts = self.get_conv_mu(With_fast)*vW + self.get_conv_bias_hs(With_fast) +  0.5*(vW**2)/alpha
         rval = nnet.sigmoid(
                 tensor.add(
-                    pre_convhs_h_parts.dimshuffle(0,3,4,1,2),
+                    pre_convhs_h_parts,
                     -0.5*self.conv_problem_term(v,With_fast)))
         return rval
 
@@ -379,8 +377,8 @@ class RBM(object):
         alpha = self.get_conv_alpha(With_fast)
         W = self.get_filters_hs(With_fast)
         vW = self.convdot(v, W)
-        rval = self.get_conv_mu(With_fast) + (vW.dimshuffle(0,3,4,1,2))/alpha        
-        return rval.dimshuffle(0,3,4,1,2), 1.0 / alpha
+        rval = self.get_conv_mu(With_fast) + vW/alpha        
+        return rval, 1.0 / alpha
 
     #####################
     # visible units
@@ -418,19 +416,15 @@ class RBM(object):
         # spike variable samples
         def sample_h(hmean,shp):
             return tensor.cast(s_rng.uniform(size=shp) < hmean, floatX)
-        #def sample_s(smeanvar, shp):
-        #    smean, svar = smeanvar
-        #    return s_rng.normal(size=shp)*tensor.sqrt(svar) + smean
+        def sample_s(smeanvar, shp):
+            smean, svar = smeanvar
+            return s_rng.normal(size=shp)*tensor.sqrt(svar) + smean
 
         sample_convhs_h = sample_h(mean_convhs_h, self.out_conv_hs_shape)
         
         # slab variable samples
-        smean, svar = meanvar_convhs_s 
-        # the shape of svar: n_filters_hs_modules, n_filters_hs_per_modules
-        random_normal = s_rng.normal(size=self.out_conv_hs_shape)
-        random_normal_bc = random_normal.dimshuffle(0,3,4,1,2)*tensor.sqrt(svar)
-        sample_convhs_s = random_normal_bc.dimshuffle(0,3,4,1,2) + smean
-        	
+        sample_convhs_s = sample_s(meanvar_convhs_s, self.out_conv_hs_shape)
+               	
         #negative phase
         vv_mean, vv_var = self.mean_var_v_given_h_s(
                 sample_convhs_h, sample_convhs_s,With_fast
@@ -453,16 +447,11 @@ class RBM(object):
     def free_energy_given_v(self, v, With_fast=False):
         # This is accurate up to a multiplicative constant
         # because I dropped some terms involving 2pi
-        alpha = self.get_conv_alpha(With_fast)	    
-        W = self.get_filters_hs(With_fast)        
-        vW = self.convdot(v, W)
-        vW_broadcastable = vW.dimshuffle(0,3,4,1,2)
-        #change 64 x 11 x 32 x 8 x 8 to 64 x 8 x 8 x 11 x 32 for broadcasting
-        pre_convhs_h_parts = self.get_conv_mu(With_fast)*vW_broadcastable + self.get_conv_bias_hs(With_fast) +  0.5*(vW_broadcastable**2)/alpha
-                
-	pre_convhs_h = tensor.add(
-                    pre_convhs_h_parts.dimshuffle(0,3,4,1,2),
-                   -0.5*self.conv_problem_term(v,With_fast))
+        def pre_sigmoid(x):
+            assert x.owner and x.owner.op == nnet.sigmoid
+            return x.owner.inputs[0]
+
+        pre_convhs_h = pre_sigmoid(self.mean_convhs_h_given_v(v,With_fast))        
         rval = tensor.add(
                 -tensor.sum(nnet.softplus(pre_convhs_h),axis=[1,2,3,4]), #the shape of pre_convhs_h: 64 x 11 x 32 x 8 x 8
                 0.5 * tensor.sum(self.get_v_prec(With_fast) * (v**2), axis=[1,2,3]), #shape: 64 x 1 x 98 x 98 
@@ -480,7 +469,6 @@ class RBM(object):
 		wrt=self.params(),
 		consider_constant=[pos_v]+[neg_v])
         
-        print len(stepsizes),len(grads+grads)
         assert len(stepsizes)==len(grads+grads)
 
         if self.conf['unnatural_grad']:
@@ -641,17 +629,13 @@ class Trainer(object): # updates of this object implement training
                     pos_v=self.visible_batch,
                     neg_v=self.sampler.particles,
                     stepsizes=[annealing_coef*lr for lr in self.learn_rates]+[lr_fast for lr_fast in self.learn_rates_fast]))
-        if conf['increase_steps_sampling']:
-	    steps_sampling = self.iteration.get_value() / 1000 + self.conf['constant_steps_sampling']
-	else:
-	    steps_sampling = self.conf['constant_steps_sampling']
-	    
+        	    
         if conf['chain_reset_prob']:
             # advance the 'negative-phase' chain
             nois_batch = self.sampler.s_rng.normal(size=self.rbm.v_shape)
             #steps_sampling = steps_sampling + conf['chain_reset_burn_in']
-            resets = self.sampler.s_rng.uniform()<conf['chain_reset_prob']
-            old_particles = tensor.switch(resets.dimshuffle('x','x','x','x'),
+            resets = self.sampler.s_rng.uniform(size=(self.rbm.v_shape[0],))<conf['chain_reset_prob']
+            old_particles = tensor.switch(resets.dimshuffle(0,'x','x','x'),
                     nois_batch,   # reset the chain
                     self.sampler.particles,  #continue chain
                     )
@@ -662,15 +646,13 @@ class Trainer(object): # updates of this object implement training
         else:
             old_particles = self.sampler.particles
         
-	#print steps_sampling        
+	steps_sampling = self.conf['constant_steps_sampling']   
         tmp_particles = old_particles    
         for step in xrange(int(steps_sampling)):
              tmp_particles  = self.rbm.gibbs_step_for_v(tmp_particles,\
                             self.sampler.s_rng,border_mask=conf['border_mask'],\
                             sampling_for_v=conf['sampling_for_v'])
         new_particles = tmp_particles       
-        #broadcastable_value = new_particles.broadcastable
-        #print broadcastable_value
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
 	#recons_error   = tensor.sum((self.visible_batch-reconstructions)**2)
 	recons_error = 0.0
@@ -890,10 +872,10 @@ def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False, sam
 
 def main_sample(filename, algo='Gibbs', rng=777888, burn_in=50001, save_interval=5000, n_files=10, sampling_for_v=False):
     rbm = cPickle.load(open(filename))
-    n_samples = 128
-    rbm.v_shape = (n_samples,1,120,120)
-    rbm.out_conv_hs_shape = FilterActs.infer_shape_without_instance(rbm.v_shape,rbm.filters_hs_shape)
-    rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
+    #n_samples = 128
+    #rbm.v_shape = (n_samples,1,120,120)
+    #rbm.out_conv_hs_shape = FilterActs.infer_shape_without_instance(rbm.v_shape,rbm.filters_hs_shape)
+    #rbm.v_prec = sharedX(numpy.zeros(rbm.v_shape[1:])+rbm.v_prec.get_value(borrow=True).mean(), 'var_v_prec')
     if algo == 'Gibbs':
         sampler = Gibbs.alloc(rbm, rng)
         new_particles  = rbm.gibbs_step_for_v(
@@ -904,6 +886,7 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=50001, save_interval
                 rbm.conf['particles_min'],
                 rbm.conf['particles_max'])
         fn = theano.function([], [],
+                #mode='FAST_COMPILE',   
                 updates={sampler.particles: new_particles})
         particles = sampler.particles
     elif algo == 'HMC':
@@ -918,11 +901,11 @@ def main_sample(filename, algo='Gibbs', rng=777888, burn_in=50001, save_interval
         fn = theano.function([], [], updates=ups)
         particles = sampler.positions
     
-    B_texture = Brodatz('../../../Brodatz/D6.gif', patch_shape=(1,98,98), 
-                         noise_concelling=0.0, seed=3322 ,batchdata_size=1, rescale=1.0, rescale_size=2)
-    shp = B_texture.test_img.shape
+    B_texture = Brodatz(['../../../Brodatz/D4.gif',], patch_shape=(1,98,98), 
+                         noise_concelling=0.0, seed=3322 ,batchdata_size=1, rescale=1.0, rescale_size=[4.0/3,])
+    shp = B_texture.test_img[0].shape
     img = numpy.zeros((1,)+shp)
-    temp_img = numpy.asarray(B_texture.test_img, dtype='uint8')
+    temp_img = numpy.asarray(B_texture.test_img[0], dtype='uint8')
     img[0,] = temp_img
     Image.fromarray(temp_img,'L').save('test_img.png')    
     for i in xrange(burn_in):
@@ -1003,16 +986,16 @@ def main0(rval_doc):
     n_img_cols = 98
     n_img_channels=1
     batch_x = Brodatz_op(batch_range,
-  	                     conf['dataset'],   # download from http://www.ux.uis.no/~tranden/brodatz.html
-  	                     patch_shape=(n_img_channels,
-  	                                 n_img_rows,
-  	                                 n_img_cols), 
-  	                     noise_concelling=0., 
-  	                     seed=3322, 
-  	                     batchdata_size=n_examples,
-                             rescale=1.0,
-                             rescale_size=conf['data_rescale']
-  	                     )	
+  	                 conf['dataset'],   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                 patch_shape=(n_img_channels,
+  	                              n_img_rows,
+  	                              n_img_cols), 
+  	                 noise_concelling=0., 
+  	                 seed=3322, 
+  	                 batchdata_size=n_examples,
+                         rescale=1.0,
+                         rescale_size=conf['data_rescale']
+  	                )	
            
     rbm = RBM.alloc(
             conf,
@@ -1038,8 +1021,8 @@ def main0(rval_doc):
 
     base_lr = conf['base_lr_per_example']/batchsize
     conv_lr_coef = conf['conv_lr_coef']
-
-    trainer = Trainer.alloc(
+    if conf['FPCD']:
+        trainer = Trainer.alloc(
             rbm,
             visible_batch=batch_x,
             lrdict={
@@ -1056,6 +1039,27 @@ def main0(rval_doc):
                 rbm.conv_mu_fast: sharedX(base_lr, 'conv_mu_lr_fast'),
                 rbm.conv_alpha_fast: sharedX(base_lr, 'conv_alpha_lr_fast'),
                 rbm.conv_lambda_fast: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr_fast'),
+                },
+            conf = conf,
+            )
+    else:
+        trainer = Trainer.alloc(
+            rbm,
+            visible_batch=batch_x,
+            lrdict={
+                # higher learning rate ok with CD1
+                rbm.v_prec: sharedX(base_lr, 'prec_lr'),
+                rbm.filters_hs: sharedX(conv_lr_coef*base_lr, 'filters_hs_lr'),
+                rbm.conv_bias_hs: sharedX(base_lr, 'conv_bias_hs_lr'),
+                rbm.conv_mu: sharedX(base_lr, 'conv_mu_lr'),
+                rbm.conv_alpha: sharedX(base_lr, 'conv_alpha_lr'),
+                rbm.conv_lambda: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr'),
+                rbm.v_prec_fast: sharedX(0.0, 'prec_lr_fast'),
+                rbm.filters_hs_fast: sharedX(conv_lr_coef*0.0, 'filters_hs_lr_fast'),
+                rbm.conv_bias_hs_fast: sharedX(0.0, 'conv_bias_hs_lr_fast'),
+                rbm.conv_mu_fast: sharedX(0.0, 'conv_mu_lr_fast'),
+                rbm.conv_alpha_fast: sharedX(0.0, 'conv_alpha_lr_fast'),
+                rbm.conv_lambda_fast: sharedX(conv_lr_coef*0.0, 'conv_lambda_lr_fast'),
                 },
             conf = conf,
             )
@@ -1093,15 +1097,14 @@ def main_train():
     print 'start main_train'
     main0(dict(
         conf=dict(
-            dataset='../../Brodatz/D6.gif',
-            data_rescale = 2, #2 (4.0/3) means rescale images from 640*640 to 320*320 
-            chain_reset_prob=0.001,#reset for approximately every 1000 iterations
+            dataset=['../../Brodatz/D4.gif',],
+            data_rescale = [4.0/3,], #2 (4.0/3) means rescale images from 640*640 to 320*320 
+            chain_reset_prob=0.005,#reset for approximately every 200 iterations
             #chain_reset_iterations=1000,
-            chain_reset_burn_in=20,
+            #chain_reset_burn_in=20,
             unnatural_grad=False,
             alpha_logdomain=True,
-            conv_alpha0=100.,
-            global_alpha0=10.,
+            conv_alpha0=10.,
             alpha_min=1.,
             alpha_max=1000.,
             lambda_min=0.,
@@ -1111,7 +1114,7 @@ def main_train():
             conv_bias0=0.0, 
             conv_bias_irange=0.0,#conv_bias0 +- this
             conv_mu0 = 1.0,
-            train_iters=40000,
+            train_iters=50000,
             base_lr_per_example=0.00001,
             conv_lr_coef=1.0,
             batchsize=64,
@@ -1128,12 +1131,12 @@ def main_train():
             particles_max=1000.,
             #problem_term_vWWv_weight = 0.,
             #problem_term_vIv_weight = 0.,
-            n_tiled_conv_offset_diagonally = 1,
-            constant_steps_sampling = 5,         
-            increase_steps_sampling = True,
+            constant_steps_sampling = 3,         
+            #increase_steps_sampling = True,
             border_mask=True,
             sampling_for_v=True,
-            penalty_for_fast_parameters = 0.05
+            penalty_for_fast_parameters = 0.05,
+            FPCD = False,
             )))
     
 
