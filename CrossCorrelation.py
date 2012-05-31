@@ -67,5 +67,34 @@ class CrossCorrelation(object):
          
          return numpy.amax(numpy.amax(numpy.amax(value_NCC,1),1),1)
 		      
-		      
-	       
+def NCC(test_imgs,inpainted_imgs):
+   test_imgs = numpy.asarray((test_imgs - test_imgs.min()) / \
+                                   (test_imgs.max() - test_imgs.min() + 1e-6))        
+   inpainted_imgs = numpy.asarray((inpainted_imgs - inpainted_imgs.min()) / \
+                                  (inpainted_imgs.max() - inpainted_imgs.min() + 1e-6))
+                                   
+   n_samples, n_channels, n_test_rows, n_test_cols = test_imgs.shape                              
+   n_samples_, n_channels_, n_samples_rows_, n_samples_cols_ = inpainted_imgs.shape	
+   
+   assert n_samples==n_samples_
+   assert n_channels==n_channels_
+   assert n_test_rows==n_samples_rows_
+   assert n_test_cols==n_samples_cols_
+   value_NCC = numpy.zeros((n_samples,))
+   for ii in xrange(n_samples):
+       tmp_test = test_imgs[ii,:,:,:]
+       tmp_test = tmp_test/numpy.sqrt((tmp_test**2).sum())
+       tmp_inpainted = inpainted_imgs[ii,:,:,:]
+       tmp_inpainted = tmp_inpainted/numpy.sqrt((tmp_inpainted**2).sum())
+       value_NCC[ii] = numpy.dot(
+			  tmp_test.reshape(1,n_channels*n_test_rows*n_test_cols),
+			  tmp_inpainted.reshape(1,n_channels_*n_samples_rows_*n_samples_cols_).T)
+   return value_NCC			  
+			  
+   
+   
+   
+   
+   
+   
+   

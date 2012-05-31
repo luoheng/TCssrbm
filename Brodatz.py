@@ -13,7 +13,8 @@ def Brodatz_op(s_idx,
                batchdata_size=64, 
                rescale=1.0, 
                rescale_size=(2,),
-               validation=False
+               validation=False,
+               test_data=False
                ):
     """Return symbolic Brodatz_images[s_idx]
 
@@ -43,13 +44,16 @@ class Brodatz(object):
                  patch_shape, noise_concelling, 
                  seed, batchdata_size, rescale, 
                  rescale_size,
-                 validation=False):        
+                 validation=False,
+                 test_data=False):        
         self.patch_shape = patch_shape
         self.filename = filename
         self.ncc = noise_concelling
         self.rng = numpy.random.RandomState(seed)
         self.batchdata_size = batchdata_size
         self.training_img = []
+        self.validation = validation
+        self.test_data = test_data
         self.test_img = []        
         f_index = 0
         patch_channels, patch_rows, patch_cols = patch_shape 
@@ -99,12 +103,20 @@ class Brodatz(object):
         rval = numpy.zeros((N*len(self.training_img),1,patch_rows,patch_cols), dtype=self.training_img[0].dtype) 
         #print rval.shape        
         for img_index in xrange(len(self.training_img)):
-	    img = self.training_img[img_index]
+	    if self.test_data:
+	        img = self.test_img[img_index]	        
+	    else:    
+	        img = self.training_img[img_index]
 	    img_rows, img_cols = img.shape	  
 	    offsets_row = self.rng.randint(img_rows-patch_rows+1, size=N)
             offsets_col = self.rng.randint(img_cols-patch_cols+1, size=N)
             for n, (r,c) in enumerate(zip(offsets_row, offsets_col)):
-	        rval[img_index*N+n,0,:,:] = img[r:r+patch_rows,c:c+patch_cols]	    
+	        if self.test_data:
+		    temp = img[r:r+patch_rows,c:c+patch_cols]
+		    temp = (temp - temp.mean())/temp.std()    #we normalized pathes not the whole test image
+		    rval[img_index*N+n,0,:,:] = temp
+		else:
+		    rval[img_index*N+n,0,:,:] = img[r:r+patch_rows,c:c+patch_cols]	    
 	    #temp_img = rval_temp
 	    #temp_img = numpy.asarray(255*(temp_img - temp_img.min()) / (temp_img.max() - temp_img.min() + 1e-6),
             #            dtype='uint8')

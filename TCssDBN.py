@@ -720,7 +720,7 @@ def main_sample(layer1_filename, layer2_filename, algo='Gibbs', rng=777888, burn
         print i
         mean_var = fn()
         mean_samples, var_samples = mean_var
-        if i % 20 == 0 and i!=0:
+        if i % 100 == 0 and i!=0:
 	    print 'saving'
 	    savename = '%s_DBNsample_burn_%04i.png'%(layer1_filename+layer2_filename,i)
 	    Image.fromarray(
