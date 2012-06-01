@@ -815,7 +815,7 @@ class Trainer(object): # updates of this object implement training
         print 'lr annealing coef:', self.annealing_coef.get_value()
 	#print 'reconstruction error:', self.recons_error.get_value()
 
-def main_inpaint(filename, algo='Gibbs', rng=[777888,43,435,678,888], scale_separately=False, sampling_for_v=True):
+def main_inpaint(filename, algo='Gibbs', rng=[777888,43,435,678,888], scale_separately=False, sampling_for_v=True, gibbs_steps=1001):
     rbm = cPickle.load(open(filename))
     conf = rbm.conf    
     n_trial = len(rng)
@@ -848,7 +848,7 @@ def main_inpaint(filename, algo='Gibbs', rng=[777888,43,435,678,888], scale_sepa
     inpainted_rows = n_img_rows - 22
     inpainted_cols = n_img_cols - 22
     
-    value_TSS_inpainted_test = numpy.zeros((n_examples*n_trial,))
+    value_NCC_inpainted_test = numpy.zeros((n_examples*n_trial,))
     value_NCC_inpainted_center = numpy.zeros((n_examples*n_trial,))
     for n_trial_index in xrange(n_trial):   
 	sampler = Gibbs.alloc(rbm, rng)
@@ -857,7 +857,7 @@ def main_inpaint(filename, algo='Gibbs', rng=[777888,43,435,678,888], scale_sepa
 	batch_range = batch_idx * n_examples + numpy.arange(n_examples)
      
 	batch_x = Brodatz_op(batch_range,
-  	                     ['../../Brodatz/D6.gif',],   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                     [conf['dataset_path']+conf['data_name'],],  # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                     patch_shape=(n_img_channels,
   	                                 n_img_rows,
   	                                 n_img_cols), 
@@ -893,14 +893,14 @@ def main_inpaint(filename, algo='Gibbs', rng=[777888,43,435,678,888], scale_sepa
 	results_f_name = '%s_inapinted.txt'%filename
 	results_f = open(results_f_name,'w')    
      
-	for i in xrange(501):
+	for i in xrange(gibbs_steps):
 	    #print i
 	    if i % 100 == 0 and i != 0:
 		savename = '%s_inpaint_%04i.png'%(filename,i)
 		print 'saving'
 		temp = particles.get_value(borrow=True)
 		print 'the min of center: %f, the max of center: %f' \
-                                 %(temp[:,:,11:66,11:66].min(),temp[:,:,11:66,11:66].max())
+                                 %(temp[:,:,11:65,11:65].min(),temp[:,:,11:65,11:65].max())
                           
 		if scale_separately:
 		    """
@@ -923,23 +923,34 @@ def main_inpaint(filename, algo='Gibbs', rng=[777888,43,435,678,888], scale_sepa
 			flip=False,scale_each=True),
 			'L').save(savename)
 		    tmp = particles.get_value(borrow=True)
-		    inpainted_img = tmp[:,:,11:66,11:66]
+		    inpainted_img = tmp[:,:,11:65,11:65]
 		    #print inpainted_img.shape
 		    #print scaled_batchdata_center.shape
-		    value_NCC = NCC(scaled_batchdata_center, inpainted_img)		    
+		    value_NCC = NCC(scaled_batchdata_center, inpainted_img)	
+		    print i
+		    print 'NCC'
+		    print '%f, %f'%(value_NCC.mean(),value_NCC.std())
 		    results_f.write('%04i\n'%i)
 		    results_f.write('NCC\n')
 		    results_f.write('%f, %f\n'%(value_NCC.mean(),value_NCC.std()))
+		    
 		    _,_,rows,cols = inpainted_img.shape
 		    assert rows==cols
 		    CC = CrossCorrelation(img,inpainted_img,
 			  window_size=rows, n_patches_of_samples=0)
+		    print img.shape
+		    print inpainted_img.shape
 		    value_TSS =  CC.TSS()
+		    print 'TSS'
+		    print '%f, %f'%(value_TSS.mean(),value_TSS.std())
 		    results_f.write('TSS\n')
 		    results_f.write('%f, %f\n'%(value_TSS.mean(),value_TSS.std()))   
 		    		    
-		    mssim = MSSIM(scaled_batchdata_center, inpainted_img)
-		    print 'MSSIM score : ' + str(mssim.MSSIM())
+		    mssim = MSSIM(scaled_batchdata_center, inpainted_img,50)
+		    mssim_mean, mssim_std = mssim.MSSIM()
+		    print 'MSSIM score : %f, %f\n'%(mssim_mean, mssim_std)
+		    results_f.write('MSSIM score\n')
+		    results_f.write('%f, %f\n'%(mssim_mean, mssim_std))
 	    fn()
 	start = n_trial_index*n_examples
 	end = (n_trial_index+1)*n_examples

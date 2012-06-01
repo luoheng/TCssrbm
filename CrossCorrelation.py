@@ -31,14 +31,16 @@ class CrossCorrelation(object):
 	else:
 	    self.patches = numpy.zeros((n_samples,1,channels_samples,rows_samples,cols_samples))
 	    for samples_index in xrange(n_samples):
-		self.patches[samples_index,0,] = samples[samples_index,]/numpy.sqrt((samples[samples_index,]**2).sum())
+	        temp_patch = self.samples[samples_index,]
+		self.patches[samples_index,0,] = temp_patch/numpy.sqrt((temp_patch**2).sum())
+	    	
         
         
        
     def NCC(self):
         channels_test,rows_test,cols_test = self.test_image.shape
-        n_samples,n_patches,channels_patches,rows_patches,cols_patches = self.patches.shape        
-	
+        n_samples,n_patches,channels_patches,rows_patches,cols_patches = self.patches.shape    
+       	
 	rc_test_img = numpy.zeros((rows_test-rows_patches+1,cols_test-cols_patches+1,channels_test,rows_patches,cols_patches))
 	for row_index in xrange(rows_test-rows_patches+1):
 	    for col_index in xrange(cols_test-cols_patches+1):
@@ -68,28 +70,29 @@ class CrossCorrelation(object):
          return numpy.amax(numpy.amax(numpy.amax(value_NCC,1),1),1)
 		      
 def NCC(test_imgs,inpainted_imgs):
-   test_imgs = numpy.asarray((test_imgs - test_imgs.min()) / \
+    test_imgs = numpy.asarray((test_imgs - test_imgs.min()) / \
                                    (test_imgs.max() - test_imgs.min() + 1e-6))        
-   inpainted_imgs = numpy.asarray((inpainted_imgs - inpainted_imgs.min()) / \
+     
+    inpainted_imgs = numpy.asarray((inpainted_imgs - inpainted_imgs.min()) / \
                                   (inpainted_imgs.max() - inpainted_imgs.min() + 1e-6))
                                    
-   n_samples, n_channels, n_test_rows, n_test_cols = test_imgs.shape                              
-   n_samples_, n_channels_, n_samples_rows_, n_samples_cols_ = inpainted_imgs.shape	
+    n_samples, n_channels, n_test_rows, n_test_cols = test_imgs.shape                              
+    n_samples_, n_channels_, n_samples_rows_, n_samples_cols_ = inpainted_imgs.shape	
    
-   assert n_samples==n_samples_
-   assert n_channels==n_channels_
-   assert n_test_rows==n_samples_rows_
-   assert n_test_cols==n_samples_cols_
-   value_NCC = numpy.zeros((n_samples,))
-   for ii in xrange(n_samples):
-       tmp_test = test_imgs[ii,:,:,:]
-       tmp_test = tmp_test/numpy.sqrt((tmp_test**2).sum())
-       tmp_inpainted = inpainted_imgs[ii,:,:,:]
-       tmp_inpainted = tmp_inpainted/numpy.sqrt((tmp_inpainted**2).sum())
-       value_NCC[ii] = numpy.dot(
+    assert n_samples==n_samples_
+    assert n_channels==n_channels_
+    assert n_test_rows==n_samples_rows_
+    assert n_test_cols==n_samples_cols_
+    value_NCC = numpy.zeros((n_samples,))
+    for ii in xrange(n_samples):
+        tmp_test = test_imgs[ii,:,:,:]
+        tmp_test = tmp_test/numpy.sqrt((tmp_test**2).sum())
+        tmp_inpainted = inpainted_imgs[ii,:,:,:]
+        tmp_inpainted = tmp_inpainted/numpy.sqrt((tmp_inpainted**2).sum())
+        value_NCC[ii] = numpy.dot(
 			  tmp_test.reshape(1,n_channels*n_test_rows*n_test_cols),
 			  tmp_inpainted.reshape(1,n_channels_*n_samples_rows_*n_samples_cols_).T)
-   return value_NCC			  
+    return value_NCC			  
 			  
    
    

@@ -698,7 +698,7 @@ class Trainer(object): # updates of this object implement training
         print 'lr annealing coef:', self.annealing_coef.get_value()
 	#print 'reconstruction error:', self.recons_error.get_value()
 
-def main_sample(layer1_filename, layer2_filename, algo='Gibbs', rng=777888, burn_in=50001, save_interval=5000, n_files=10, sampling_for_v=False):
+def main_sample(layer1_filename, layer2_filename, algo='Gibbs', rng=777888, burn_in=10001, save_interval=5000, n_files=10, sampling_for_v=True):
     rbm = cPickle.load(open(layer1_filename))
     brbm = cPickle.load(open(layer2_filename))
     sampler = l2_Gibbs.alloc(brbm, rng)
@@ -711,7 +711,7 @@ def main_sample(layer1_filename, layer2_filename, algo='Gibbs', rng=777888, burn
     assert n_maps==fmodules*filters_per_module
     s_particles_5d = s_tmp_particles.reshape((icount, fmodules, filters_per_module, hrows, hcols))
     h_particles_5d = h_tmp_particles.reshape((icount, fmodules, filters_per_module, hrows, hcols))
-    mean_var_samples = rbm.mean_var_v_given_h_s(s_particles_5d, h_particles_5d, False)
+    mean_var_samples = rbm.mean_var_v_given_h_s(s_particles_5d, h_particles_5d, True)
     fn = theano.function([], mean_var_samples,
                 updates={sampler.s_particles: s_tmp_particles,
                          sampler.h_particles: h_tmp_particles})
@@ -773,17 +773,17 @@ def main0(rval_doc):
     n_img_rows, n_img_cols = rbm.v_shape
 
     batch_idx = tensor.iscalar()
-    batch_range = batch_idx*batchsize + numpy.arange(batchsize)   
+    batch_range = batch_idx*batchsize + numpy.arange(batchsize)
     
     batch_x = Brodatz_op(batch_range,
-  	                     l2_conf['dataset'],   # download from http://www.ux.uis.no/~tranden/brodatz.html
-  	                     patch_shape=rbm.v_shape[1:], 
-  	                     noise_concelling=0., 
-  	                     seed=3322, 
-  	                     batchdata_size=rbm.v_shape[0],
-                             rescale=1.0,
-                             rescale_size=rbm.conf['data_rescale']
-  	                     )	           
+  	                 l2_conf['dataset'],   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                 patch_shape=rbm.v_shape[1:], 
+  	                 noise_concelling=0., 
+  	                 seed=3322, 
+  	                 batchdata_size=rbm.v_shape[0],
+                         rescale=1.0,
+                         rescale_size=[rbm.conf['data_rescale'],]
+  	                )	           
     brbm = bRBM.alloc(
             l2_conf,
             hs_shape=(
@@ -801,10 +801,6 @@ def main0(rval_doc):
             filters_irange=l2_conf['filters_irange'],
             rbm=rbm,
             )
-    
-    
-    
-    
     brbm.save_weights_to_grey_files('layer2_iter_0000')
 
     base_lr = l2_conf['base_lr_per_example']/batchsize
