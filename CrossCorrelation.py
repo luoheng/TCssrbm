@@ -3,10 +3,12 @@ import numpy
 class CrossCorrelation(object):
     
     def __init__(self, test_image, samples, window_size, seed=98987, n_patches_of_samples=0):
+        """
         self.test_image = numpy.asarray((test_image - test_image.min()) / \
                                    (test_image.max() - test_image.min() + 1e-6))        
         self.samples = numpy.asarray((samples - samples.min()) / \
                                    (samples.max() - samples.min() + 1e-6))
+        """
         #assert self.test_image.dtype == self.samples.dtype
         self.window_size = window_size
         self.rng = numpy.random.RandomState(seed)
@@ -70,12 +72,13 @@ class CrossCorrelation(object):
          return numpy.amax(numpy.amax(numpy.amax(value_NCC,1),1),1)
 		      
 def NCC(test_imgs,inpainted_imgs):
+    """
     test_imgs = numpy.asarray((test_imgs - test_imgs.min()) / \
                                    (test_imgs.max() - test_imgs.min() + 1e-6))        
      
     inpainted_imgs = numpy.asarray((inpainted_imgs - inpainted_imgs.min()) / \
                                   (inpainted_imgs.max() - inpainted_imgs.min() + 1e-6))
-                                   
+    """                               
     n_samples, n_channels, n_test_rows, n_test_cols = test_imgs.shape                              
     n_samples_, n_channels_, n_samples_rows_, n_samples_cols_ = inpainted_imgs.shape	
    

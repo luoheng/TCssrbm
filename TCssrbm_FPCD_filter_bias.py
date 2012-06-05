@@ -660,21 +660,33 @@ class Trainer(object): # updates of this object implement training
         else:
             old_particles = self.sampler.particles
         
-	steps_sampling = self.conf['constant_steps_sampling']   
+	steps_sampling = int(self.conf['constant_steps_sampling'])   
         tmp_particles = old_particles    
+        """
         for step in xrange(int(steps_sampling)):
              tmp_particles  = self.rbm.gibbs_step_for_v(tmp_particles,\
                             self.sampler.s_rng,border_mask=conf['border_mask'],\
                             sampling_for_v=conf['sampling_for_v'])
         new_particles = tmp_particles       
+        """
+        new_particles, scan_updates=theano.scan(self.rbm.gibbs_step_for_v, 
+                                           outputs_info=tmp_particles,
+                                           non_sequences=[self.sampler.s_rng,
+                                                          False,
+                                                          conf['border_mask'],
+                                                          conf['sampling_for_v']],
+                                           n_steps=steps_sampling)
+        
+        print scan_updates
+        ups.update(scan_updates)
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
 	#recons_error   = tensor.sum((self.visible_batch-reconstructions)**2)
 	recons_error = 0.0
         ups[self.recons_error] = recons_error
 	#return {self.particles: new_particles}
-        ups[self.sampler.particles] = tensor.clip(new_particles,
+        ups[self.sampler.particles] = tensor.clip(new_particles[-1],
                 conf['particles_min'],
-                conf['particles_max'])
+                conf['particles_max'])      
         
         
         

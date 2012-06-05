@@ -29,15 +29,17 @@ batch_x = Brodatz_op(batch_range,
   	             seed=3322, 
   	             batchdata_size=n_examples,
                      rescale=1.0,
-                     rescale_size=[2.0,
-                                   4.0/3,
-                                   2.0,
-                                   4.0/3,
-                                   4.0/3,
-                                   1.0,
-                                   2.0,
-                                   2.0
-		       ]
+                     new_shapes = [[320,320],
+                                   [480,480],
+                                   [320,320],
+                                   [480,480],
+                                   [480,480],
+                                   [640,640],
+                                   [320,320],
+                                   [320,320]
+		       ],
+		     validation=False,    
+                     test_data=False   
   	            )	
 fn=theano.function([s_idx],batch_x)
 
@@ -57,15 +59,17 @@ B_texture = Brodatz(['../Brodatz/D6.gif',
   	             seed=3322, 
   	             batchdata_size=n_examples,
                      rescale=1.0,
-                     rescale_size=[2.0,
-                                   4.0/3,
-                                   2.0,
-                                   4.0/3,
-                                   4.0/3,
-                                   1.0,
-                                   2.0,
-                                   2.0
-		       ])
+                     new_shapes = [[320,320],
+                                   [480,480],
+                                   [320,320],
+                                   [480,480],
+                                   [480,480],
+                                   [640,640],
+                                   [320,320],
+                                   [320,320]
+                     validation=False,    
+                     test_data=False              
+		   ])
 """
 for ii in xrange(8):
     shp = B_texture.test_img[ii].shape
@@ -83,7 +87,7 @@ for ii in xrange(8):
 """
 for n in xrange(10):
     img_1=fn(n)
-    img_2=fn(n+1)
+    #img_2=fn(n+1)
     #assert img_1.any() == img_2.any()
     Image.fromarray(tile_conv_weights(img_1,
             flip=False),'L').save('patches_%s.png'%n)
