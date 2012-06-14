@@ -40,14 +40,15 @@ class MSSIM(object):
                            for s in self.samples])
             return (1.0 / len(self.samples)) * sumSSIM            
         else:
-            import pdb
-            pdb.set_trace()
             sumSSIM = sum([self.SSIM(self.samples[i], self.test_samples[i])
                            for i in range(len(self.samples))])
             return (1.0 / len(self.samples)) * sumSSIM
             
     def MSSIM(self):
         # Return the mean and the std_dev of the SSIM scores for all the samples
+        #import pdb
+        #pdb.set_trace()
+        
         SSIMs = None
         if self.single_test_sample:
             SSIMs = [self.MSSIM_one_sample(s, self.test_samples) for s in self.samples]          
@@ -63,8 +64,6 @@ class MSSIM(object):
                 for col in range(results.shape[2]):
                     results[color, row, col] = self.SSIM(sample[:,row:row+self.window_size, col:col+self.window_size],
                                                 test_sample[:,row:row+self.window_size, col:col+self.window_size])
-        #import pdb
-        #pdb.set_trace()
         return numpy.mean(results)
                 
         
@@ -77,18 +76,15 @@ class MSSIM(object):
         stdSample = numpy.std(sample)
         stdTest = numpy.std(test_sample)
         
-        #covariance = numpy.cov(sample.flatten(), test_sample.flatten())[0,1]
-        #covariance = numpy.corrcoef(sample.flatten(), test_sample.flatten())[0,1] * stdSample * stdTest
         
-        covariance = numpy.corrcoef(sample, test_sample) * stdSample * stdTest
-        
-        covariance = numpy.mean( numpy.nan_to_num(covariance) )
+        covariance = numpy.cov(sample.flatten(), test_sample.flatten())[0,1]        
+        covariance = numpy.nan_to_num(covariance)
         
 
         
-        C1 = (255 * 0.0001) ** 2 # Constant to avoid instability when 
+        C1 = (255 * 0.01) ** 2 # Constant to avoid instability when 
                                # meanSample**2 + meanTest**2 approaches 0
-        C2 = (255 * 0.0001) ** 2 # Constant to avoid instability when 
+        C2 = (255 * 0.03) ** 2 # Constant to avoid instability when 
                                # stdSample**2 + stdTest**2 approaches 0 
         
         numerator = (2 * meanSample * meanTest + C1) * (2 * covariance + C2)

@@ -757,6 +757,14 @@ class Trainer(object): # updates of this object implement training
         #print scan_updates
         ups.update(scan_updates)
         
+        if conf['normalized_filter']:
+	    temp_filters = ups[self.rbm.filters_hs]   
+	    for position_index in xrange(self.rbm.filters_hs_shape[0]):
+	        for filters_index in xrange(self.rbm.filters_hs_shape[1]):
+		    one_filter = temp_filters[position_index,filters_index]
+		    one_filter = one_filter/((one_filter**2).sum())
+		    dummy = theano.tensor.basic.set_subtensor(temp_filters[position_index,filters_index], one_filter)
+	    ups[self.rbm.filters_hs] = temp_filters        
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
 	#recons_error   = tensor.sum((self.visible_batch-reconstructions)**2)
 	recons_error = 0.0
@@ -1292,13 +1300,13 @@ def main0(conf):
                 rbm.conv_bias_hs: sharedX(base_lr, 'conv_bias_hs_lr'),
                 rbm.conv_mu: sharedX(base_lr, 'conv_mu_lr'),
                 rbm.conv_alpha: sharedX(base_lr, 'conv_alpha_lr'),
-                rbm.conv_lambda: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr'),
+                rbm.conv_lambda: sharedX(conv_lr_coef*0.0, 'conv_lambda_lr'),
                 rbm.v_prec_fast: sharedX(base_lr, 'prec_lr_fast'),
                 rbm.filters_hs_fast: sharedX(conv_lr_coef*base_lr, 'filters_hs_lr_fast'),
                 rbm.conv_bias_hs_fast: sharedX(base_lr, 'conv_bias_hs_lr_fast'),
                 rbm.conv_mu_fast: sharedX(base_lr, 'conv_mu_lr_fast'),
                 rbm.conv_alpha_fast: sharedX(base_lr, 'conv_alpha_lr_fast'),
-                rbm.conv_lambda_fast: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr_fast'),
+                rbm.conv_lambda_fast: sharedX(conv_lr_coef*0.0, 'conv_lambda_lr_fast'),
                 },
             conf = conf,
             )
@@ -1313,7 +1321,7 @@ def main0(conf):
                 rbm.conv_bias_hs: sharedX(base_lr, 'conv_bias_hs_lr'),
                 rbm.conv_mu: sharedX(base_lr, 'conv_mu_lr'),
                 rbm.conv_alpha: sharedX(base_lr, 'conv_alpha_lr'),
-                rbm.conv_lambda: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr'),
+                rbm.conv_lambda: sharedX(conv_lr_coef*0.0, 'conv_lambda_lr'),
                 rbm.v_prec_fast: sharedX(0.0, 'prec_lr_fast'),
                 rbm.filters_hs_fast: sharedX(conv_lr_coef*0.0, 'filters_hs_lr_fast'),
                 rbm.conv_bias_hs_fast: sharedX(0.0, 'conv_bias_hs_lr_fast'),
@@ -1369,7 +1377,7 @@ def main_train(argv):
             lambda_min=0.,
             fast_lambda_min=-0.01,
             lambda_max=10.,
-            lambda0=0.001,
+            lambda0=0.0,
             lambda_logdomain=False,
             conv_bias0=0.0, 
             conv_bias_irange=0.0,#conv_bias0 +- this
@@ -1478,7 +1486,15 @@ def main_train(argv):
     conf['v_prec_lower_limit'] = float(argv[15])
     directory_name += 'v_prec_lower_limit'
     directory_name += argv[15]
-           
+    directory_name += '_'
+   
+    if int(argv[16])==1:
+        conf['normalized_filter'] = True        
+    else:
+        conf['normalized_filter'] = False
+    directory_name += 'normalize_filter'    
+    directory_name += argv[16]
+       
     directory_name += '/'    
     os.mkdir(directory_name)
     conf['directory_name'] = directory_name
