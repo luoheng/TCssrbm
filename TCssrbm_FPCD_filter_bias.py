@@ -1229,7 +1229,118 @@ def main_sampling_inpaint(filename):
                 save_interval=1000, 
                 sampling_for_v=True, 
                 rng=777888)
-                
+
+def main_restart(argv):
+    #argv[2] pkl file name (containing the proper path)
+    #argv[3] the number of ietration has been completed
+    #argv[4] the extral number of iteration
+    #argv[5] the new steps for gibbs sampling
+    filename = argv[2] 
+    n_iteration = int(argv[3])
+    rbm = cPickle.load(open(filename))    
+    rbm.conf['train_iters'] = rbm.conf['train_iters'] + int(argv[4])
+    rbm.conf['constant_steps_sampling'] = int(argv[5])
+    print 'retrain the model%s'%filename
+    print 'retrain the model for another %i with %i gibbs sampling steps'%(int(argv[4]), rbm.conf['constant_steps_sampling'])
+    rbm.conf['directory_name'] += 'retrain_iteration' 
+    rbm.conf['directory_name'] += str(rbm.conf['train_iters']) 
+    rbm.conf['directory_name'] += '_g' 
+    rbm.conf['directory_name'] += str(rbm.conf['constant_steps_sampling'])
+    rbm.conf['directory_name'] += '/'
+        
+    conf = rbm.conf
+    batchsize = conf['batchsize']
+
+    batch_idx = tensor.iscalar()
+    batch_range = batch_idx * conf['batchsize'] + numpy.arange(conf['batchsize'])  
+       
+    n_examples = conf['batchsize']   #64
+    n_img_rows = 98
+    n_img_cols = 98
+    n_img_channels=1
+    batch_x = Brodatz_op(batch_range,
+  	                 [conf['dataset_path']+conf['data_name'],],   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                 patch_shape=(n_img_channels,
+  	                              n_img_rows,
+  	                              n_img_cols), 
+  	                 noise_concelling=0., 
+  	                 seed=3322, 
+  	                 batchdata_size=n_examples,
+                         rescale=1.0,
+                         new_shapes=[[conf['new_shape_x'],conf['new_shape_x']],],
+                         validation=conf['validation'],
+                         test_data=False
+  	                )	
+    
+    base_lr = conf['base_lr_per_example']/batchsize
+    conv_lr_coef = conf['conv_lr_coef']
+    if conf['FPCD']:
+        trainer = Trainer.alloc(
+            rbm,
+            visible_batch=batch_x,
+            lrdict={
+                # higher learning rate ok with CD1
+                rbm.v_prec: sharedX(base_lr, 'prec_lr'),
+                rbm.filters_hs: sharedX(conv_lr_coef*base_lr, 'filters_hs_lr'),
+                rbm.conv_bias_hs: sharedX(base_lr, 'conv_bias_hs_lr'),
+                rbm.conv_mu: sharedX(base_lr, 'conv_mu_lr'),
+                rbm.conv_alpha: sharedX(base_lr, 'conv_alpha_lr'),
+                rbm.conv_lambda: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr'),
+                rbm.v_prec_fast: sharedX(base_lr, 'prec_lr_fast'),
+                rbm.filters_hs_fast: sharedX(conv_lr_coef*base_lr, 'filters_hs_lr_fast'),
+                rbm.conv_bias_hs_fast: sharedX(base_lr, 'conv_bias_hs_lr_fast'),
+                rbm.conv_mu_fast: sharedX(base_lr, 'conv_mu_lr_fast'),
+                rbm.conv_alpha_fast: sharedX(base_lr, 'conv_alpha_lr_fast'),
+                rbm.conv_lambda_fast: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr_fast'),
+                },
+            conf = conf,
+            iteration_value = n_iteration,
+            )
+    else:
+        trainer = Trainer.alloc(
+            rbm,
+            visible_batch=batch_x,
+            lrdict={
+                # higher learning rate ok with CD1
+                rbm.v_prec: sharedX(base_lr, 'prec_lr'),
+                rbm.filters_hs: sharedX(conv_lr_coef*base_lr, 'filters_hs_lr'),
+                rbm.conv_bias_hs: sharedX(base_lr, 'conv_bias_hs_lr'),
+                rbm.conv_mu: sharedX(base_lr, 'conv_mu_lr'),
+                rbm.conv_alpha: sharedX(base_lr, 'conv_alpha_lr'),
+                rbm.conv_lambda: sharedX(conv_lr_coef*base_lr, 'conv_lambda_lr'),
+                rbm.v_prec_fast: sharedX(0.0, 'prec_lr_fast'),
+                rbm.filters_hs_fast: sharedX(conv_lr_coef*0.0, 'filters_hs_lr_fast'),
+                rbm.conv_bias_hs_fast: sharedX(0.0, 'conv_bias_hs_lr_fast'),
+                rbm.conv_mu_fast: sharedX(0.0, 'conv_mu_lr_fast'),
+                rbm.conv_alpha_fast: sharedX(0.0, 'conv_alpha_lr_fast'),
+                rbm.conv_lambda_fast: sharedX(conv_lr_coef*0.0, 'conv_lambda_lr_fast'),
+                },
+            conf = conf,
+            iteration_value = n_iteration,
+            )  
+    print 'start building function'
+    training_updates = trainer.updates() #
+    train_fn = theano.function(inputs=[batch_idx],
+            outputs=[],
+	    #mode='FAST_COMPILE',
+            #mode='DEBUG_MODE',
+	    updates=training_updates	    
+	    )  #
+
+    print 'training...'
+    
+    iter = n_iteration
+    while trainer.annealing_coef.get_value()>=0: #
+        dummy = train_fn(iter) #
+        if iter % 100 == 0:
+	    trainer.print_status()	    
+	if iter % 10000 == 0:
+            rbm.dump_to_file(conf['directory_name']+'rbm_%06i.pkl'%iter)            
+        if iter % 1000 == 0:
+            trainer.save_weights_to_grey_files()
+        iter += 1
+    main_sampling_inpaint(conf['directory_name']+'rbm_%06i.pkl'%conf['train_iters'])    
+
 def main0(conf):
     
     batchsize = conf['batchsize']
@@ -1339,15 +1450,11 @@ def main0(conf):
     iter = 0
     while trainer.annealing_coef.get_value()>=0: #
         dummy = train_fn(iter) #
-        if iter % 40 == 0:
+        if iter % 100 == 0:
 	    trainer.print_status()	    
 	if iter % 10000 == 0:
             rbm.dump_to_file(conf['directory_name']+'rbm_%06i.pkl'%iter)
-        if iter <= 1000 and not (iter % 100): #
-            trainer.print_status()
-            trainer.save_weights_to_grey_files()
-        elif not (iter % 1000):
-            trainer.print_status()
+        if iter % 1000 == 0:
             trainer.save_weights_to_grey_files()
         iter += 1   
 
@@ -1505,3 +1612,5 @@ if __name__ == '__main__':
         sys.exit(main_inpaint(sys.argv[2]))
     if sys.argv[1] == 's_i':
         sys.exit(main_sampling_inpaint(sys.argv[2]))
+    if sys.argv[1] == 'restart':
+        sys.exit(main_restart(sys.argv))    

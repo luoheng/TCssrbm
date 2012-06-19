@@ -733,8 +733,8 @@ def main_inpaint(layer1_filename,
                  rng=[777888,43,435,678,888], 
                  scale_separately=False, 
                  sampling_for_v=True, 
-                 gibbs_steps=5001,
-                 save_interval=200):
+                 gibbs_steps=1001,
+                 save_interval=500):
     filename = layer2_filename #so we put the path information into the layer 2 filename
     n_trial = len(rng)
     rbm = cPickle.load(open(layer1_filename))
@@ -804,8 +804,8 @@ def main_inpaint(layer1_filename,
   	                     rescale=1.0,
                              new_shapes=[[conf['new_shape_x'],conf['new_shape_x']],],
                              #new_shapes=[[int(640/conf['data_rescale']),int(640/conf['data_rescale'])],],                        
-                             validation=False,
-                             test_data=True #we use test image
+                             validation=conf['validation'],
+                             test_data=True #we use get the batch data from the test image
   	                     )	
 	fn_getdata = theano.function([batch_idx],batch_x)
 	batchdata = fn_getdata(0)
@@ -935,7 +935,7 @@ def main_sample(layer1_filename,
                 layer2_filename, 
                 samples_shape=(128,1,120,120),                 
                 burn_in=5001, 
-                save_interval=500, 
+                save_interval=1000, 
                 sampling_for_v=True,
                 rng=777888):
     filename = layer2_filename #so we put the path information into the layer 2 filename
@@ -1035,13 +1035,13 @@ def main_sample(layer1_filename,
 	    results_f.write('%f, %f\n'%(aaa.mean(),aaa.std()))              
     results_f.close()  
 
-def main_sampling_inpaint(layer1_filename,layer2_filename):
+def main_sampling_inpaint(layer1_filename,layer2_filename):    
+    main_sample(layer1_filename,layer2_filename)   
     main_inpaint(layer1_filename,layer2_filename)
-    main_sample(layer1_filename,layer2_filename)    
     main_sample(layer1_filename,layer2_filename,
                 samples_shape=(1,1,362,362),
                 burn_in=5001,
-                save_interval=500, 
+                save_interval=1000, 
                 sampling_for_v=True, 
                 rng=777888)
                 
@@ -1049,6 +1049,7 @@ def main_sampling_inpaint(layer1_filename,layer2_filename):
 def main0(rval_doc):
     l2_conf = rval_doc['l2_conf']
     rbm = cPickle.load(open(l2_conf['rbm_pkl']))
+    conf = rbm.conf
     print rbm.conf['data_name']
     sampler = Gibbs.alloc(rbm, rng=33345)    
     batchsize, n_img_channels, \
@@ -1058,13 +1059,15 @@ def main0(rval_doc):
     batch_range = batch_idx*batchsize + numpy.arange(batchsize)
     
     batch_x = Brodatz_op(batch_range,
-  	                 [l2_conf['dataset'],],   # download from http://www.ux.uis.no/~tranden/brodatz.html
+  	                 [conf['dataset_path']+conf['data_name'],],   # download from http://www.ux.uis.no/~tranden/brodatz.html
   	                 patch_shape=rbm.v_shape[1:], 
   	                 noise_concelling=0., 
   	                 seed=3322, 
   	                 batchdata_size=rbm.v_shape[0],
                          rescale=1.0,
-                         rescale_size=[rbm.conf['data_rescale'],]
+                         new_shapes=[[conf['new_shape_x'],conf['new_shape_x']],],
+                         validation=conf['validation'],
+                         test_data=False
   	                )	           
     brbm = bRBM.alloc(
             l2_conf,
@@ -1100,13 +1103,13 @@ def main0(rval_doc):
             lrdict={
                 brbm.filters: sharedX(conv_lr_coef*base_lr, 'filters_lr'),
                 brbm.conv_v_bias: sharedX(base_lr, 'conv_v_bias_lr'),
-                brbm.h_bias: sharedX(0.0, 'h_bias_lr'),
-                brbm.mu: sharedX(0.0, 'mu_lr'),
-                brbm.alpha: sharedX(0.0, 'alpha_lr'),
+                brbm.h_bias: sharedX(base_lr, 'h_bias_lr'),
+                brbm.mu: sharedX(base_lr, 'mu_lr'),
+                brbm.alpha: sharedX(0.0, 'alpha_lr'), #we keep the alpha fixed in the second layer training 
                 brbm.filters_fast: sharedX(conv_lr_coef*base_lr, 'filters_fast_lr'),
                 brbm.conv_v_bias_fast: sharedX(base_lr, 'conv_v_bias_fast_lr'),
-                brbm.h_bias_fast: sharedX(0.0, 'h_bias_fast_lr'),
-                brbm.mu_fast: sharedX(0.0, 'conv_mu_fast_lr'),
+                brbm.h_bias_fast: sharedX(base_lr, 'h_bias_fast_lr'),
+                brbm.mu_fast: sharedX(base_lr, 'conv_mu_fast_lr'),
                 brbm.alpha_fast: sharedX(0.0, 'conv_alpha_fast_lr')
                 },
             conf = l2_conf,
@@ -1119,8 +1122,8 @@ def main0(rval_doc):
             lrdict={
                 brbm.filters: sharedX(conv_lr_coef*base_lr, 'filters_lr'),
                 brbm.conv_v_bias: sharedX(base_lr, 'conv_v_bias_lr'),
-                brbm.h_bias: sharedX(0.0, 'h_bias_lr'),
-                brbm.mu: sharedX(0.0, 'mu_lr'),
+                brbm.h_bias: sharedX(base_lr, 'h_bias_lr'),
+                brbm.mu: sharedX(base_lr, 'mu_lr'),
                 brbm.alpha: sharedX(0.0, 'alpha_lr'),
                 brbm.filters_fast: sharedX(0.0, 'filters_fast_lr'),
                 brbm.conv_v_bias_fast: sharedX(0.0, 'conv_v_bias_fast_lr'),
@@ -1146,9 +1149,9 @@ def main0(rval_doc):
     iter = 0
     while trainer.annealing_coef.get_value()>=0: #
         dummy = train_fn(iter) #
-        if iter % 10 == 0:
+        if iter % 100 == 0:
 	    trainer.print_status()
-	if iter % 1000 == 0:
+	if iter % 5000 == 0:
             brbm.dump_to_file(os.path.join(_temp_data_path_,'brbm_%06i.pkl'%iter))
         if iter <= 1000 and not (iter % 100): #
             trainer.print_status()
@@ -1157,6 +1160,8 @@ def main0(rval_doc):
             trainer.print_status()
             trainer.save_weights_to_grey_files()
         iter += 1
+    layer2_filename = 'brbm_%06i.pkl'%l2_conf['train_iters']        
+    main_sampling_inpaint(l2_conf['rbm_pkl'],layer2_filename)         
         
 
 def main_train():
@@ -1164,7 +1169,7 @@ def main_train():
     main0(dict(        
        l2_conf=dict(
             dataset='/data/lisa/exp/luoheng/Brodatz/',
-            rbm_pkl='./rbm_040000.pkl', 
+            rbm_pkl='./rbm_060000.pkl', 
             #chain_reset_prob=0.0,#reset for approximately every 1000 iterations #we need scan for the burn in loop
             #chain_reset_iterations=100
             #chain_reset_burn_in=0,
@@ -1190,8 +1195,7 @@ def main_train():
             penalty_for_fast_parameters = 0.1,
             fast_weights = False
             )))
-    layer2_filename = 'rbm_%06i.pkl'%l2_conf['train_iters']        
-    main_sampling_inpaint(l2_conf['rbm_pkl'],layer2_filename)        
+        
     
 
 if __name__ == '__main__':

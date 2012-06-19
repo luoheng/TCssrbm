@@ -1381,7 +1381,7 @@ def main_train(argv):
             lambda_logdomain=False,
             conv_bias0=0.0, 
             conv_bias_irange=0.0,#conv_bias0 +- this
-            conv_mu0 = 1.0,
+            #conv_mu0 = 1.0,
             #train_iters=40000,
             #base_lr_per_example=0.00001,
             conv_lr_coef=1.0,
@@ -1494,6 +1494,11 @@ def main_train(argv):
         conf['normalized_filter'] = False
     directory_name += 'normalize_filter'    
     directory_name += argv[16]
+    directory_name += '_'
+    
+    conf['conv_mu0'] = float(argv[17])
+    directory_name += 'conv_mu0'
+    directory_name += argv[17]    
        
     directory_name += '/'    
     os.mkdir(directory_name)
