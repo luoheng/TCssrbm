@@ -15,6 +15,7 @@ from unshared_conv_diagonally import ImgActs
 def rand(shp, dtype):
     return numpy.random.rand(*shp).astype(dtype)
 
+
 def assert_linear(f, pt, mode=None):
     t = theano.tensor.scalar(dtype=pt.dtype)
     ptlike = theano.shared(rand(
@@ -33,20 +34,21 @@ def assert_linear(f, pt, mode=None):
     assert numpy.allclose(out3val, out4val)
 
 
-
 class _TestFilterActs(unittest.TestCase):
-  
+
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
     #ishape_list = [(1, 1, 98, 98),(2, 3, 24, 24)]
     ishape_list = [(20, 1, 98, 98)]
-    
-    #Each item in fshapes_list = (fmodules, filters_per_module, fcolors, frows, fcols)
+
+    #Each item in fshapes_list = (fmodules, filters_per_module,
+    #                             fcolors, frows, fcols)
     #fshape_list = [(11, 32, 1, 11, 11),(1, 1, 3, 6, 6)]
     fshape_list = [(11, 32, 1, 11, 11)]
-    
-    # Each item in hshapes_list = (hcount, fmodules, filter_per_module, hrows, hcols)
+
+    # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
+    #                              hrows, hcols)
     #hshape_list = [(1, 11, 32, 8, 8),(2, 1, 1, 6, 6 )]
     hshape_list = [(20, 11, 32, 8, 8)]
 
@@ -54,10 +56,8 @@ class _TestFilterActs(unittest.TestCase):
     dtype = 'float64'
     mode = theano.compile.get_default_mode()
     nbTests = len(ishape_list)
-    
-    
-    # Utility functions
 
+    # Utility functions
     def ishape(self, i):
         return self.ishape_list[i]
 
@@ -66,23 +66,23 @@ class _TestFilterActs(unittest.TestCase):
 
     def hshape(self, i):
         return self.hshape_list[i]
-  
+
     def function(self, inputs, outputs):
         return theano.function(inputs, outputs, mode=self.mode)
 
     def setUp(self):
         self.op = FilterActs(self.module_stride)
-        
-        for i in range(self.nbTests):
-            self.s_images_list = [theano.shared(rand(ishape, self.dtype)) for ishape in self.ishape_list]
-            self.s_filters_list = [theano.shared(rand(fshape, self.dtype)) for fshape in self.fshape_list]
-        
-        
-    # Test cases    
 
+        for i in range(self.nbTests):
+            self.s_images_list = [theano.shared(rand(ishape, self.dtype))
+                                  for ishape in self.ishape_list]
+            self.s_filters_list = [theano.shared(rand(fshape, self.dtype))
+                                   for fshape in self.fshape_list]
+
+    # Test cases
     def test_type(self):
         for i in range(self.nbTests):
-      
+
             out = self.op(self.s_images_list[i], self.s_filters_list[i])
             assert out.dtype == self.dtype
             assert out.ndim == 5
@@ -90,10 +90,11 @@ class _TestFilterActs(unittest.TestCase):
             f = self.function([], out)
             outval = f()
             assert outval.shape == self.hshape(i)
-            assert outval.dtype == self.s_images_list[i].get_value(borrow=True).dtype
+            assert outval.dtype == self.s_images_list[i].get_value(
+                borrow=True).dtype
 
     def test_linearity_images(self):
-        for i in range(self.nbTests):  
+        for i in range(self.nbTests):
             assert_linear(
                     lambda imgs: self.op(imgs, self.s_filters_list[i]),
                     self.s_images_list[i],
@@ -116,7 +117,7 @@ class _TestFilterActs(unittest.TestCase):
 
     def test_grad_left(self):
         for i in range(self.nbTests):
-      
+
             # test only the left so that the right can be a shared variable,
             # (for tests on the GPU)
             def left_op(imgs):
@@ -131,12 +132,12 @@ class _TestFilterActs(unittest.TestCase):
 
     def test_grad_right(self):
         for i in range(self.nbTests):
-      
+
             # test only the right so that the left can be a shared variable,
             # (for tests on the GPU)
             def right_op(filters):
                 return self.op(self.s_images_list[i], filters)
-  
+
             try:
                 verify_grad(right_op, [self.s_filters_list[i].get_value()],
                         mode=self.mode)
@@ -147,7 +148,7 @@ class _TestFilterActs(unittest.TestCase):
 
     def test_dtype_mismatch(self):
         for i in range(self.nbTests):
-      
+
             self.assertRaises(TypeError,
                     self.op,
                     theano.tensor.cast(self.s_images_list[i], 'float32'),
@@ -166,7 +167,7 @@ class _TestFilterActs(unittest.TestCase):
 
 class _TestFilterActsF32(_TestFilterActs):
     dtype = 'float32'
-    
+
 
 class _TestWeightActs(unittest.TestCase):
 
@@ -175,12 +176,15 @@ class _TestWeightActs(unittest.TestCase):
     #Each item in ishape_list : (icount, icolors, irows, icols)
     #ishape_list = [(1, 1, 98, 98),(2, 3, 24, 24)]
     ishape_list = [(10, 1, 98, 98)]
-    
-    #Each item in fshapes_list = (fmodules, filters_per_module, fcolors, frows, fcols)
+
+    #Each item in fshapes_list = (fmodules, filters_per_module,
+    #                             fcolors, frows, fcols)
+
     #fshape_list = [(11, 32, 1, 11, 11),(1, 1, 3, 6, 6)]
     fshape_list = [(11, 32, 1, 11, 11)]
 
-    # Each item in hshapes_list = (hcount, fmodules, filter_per_module, hrows, hcols)
+    # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
+    #                              hrows, hcols)
     #hshape_list = [(1, 11, 32, 8, 8),(2, 1, 1, 6, 6 )]
     hshape_list = [(10, 11, 32, 8, 8)]
 
@@ -188,9 +192,7 @@ class _TestWeightActs(unittest.TestCase):
     dtype = 'float64'
     nbTests = len(ishape_list)
 
-
     # Utility functions
-
     def ishape(self, i):
         return self.ishape_list[i]
 
@@ -210,12 +212,12 @@ class _TestWeightActs(unittest.TestCase):
         self.op = WeightActs(self.module_stride)
 
         for i in range(self.nbTests):
-            self.s_images_list = [theano.shared(rand(ishape, self.dtype)) for ishape in self.ishape_list]
-            self.s_hidacts_list = [theano.shared(rand(hshape, self.dtype)) for hshape in self.hshape_list]
-
+            self.s_images_list = [theano.shared(rand(ishape, self.dtype))
+                                  for ishape in self.ishape_list]
+            self.s_hidacts_list = [theano.shared(rand(hshape, self.dtype))
+                                   for hshape in self.hshape_list]
 
     # Test cases
-
     def test_type(self):
         for i in range(self.nbTests):
 
@@ -232,14 +234,16 @@ class _TestWeightActs(unittest.TestCase):
         for i in range(self.nbTests):
 
             def f(images):
-                return self.op(images, self.s_hidacts_list[i], self.frows(i), self.fcols(i))
+                return self.op(images, self.s_hidacts_list[i],
+                               self.frows(i), self.fcols(i))
             assert_linear(f, self.s_images_list[i])
 
     def test_linearity_hidacts(self):
         for i in range(self.nbTests):
 
             def f(hidacts):
-                return self.op(self.s_images_list[i], hidacts, self.frows(i), self.fcols(i))
+                return self.op(self.s_images_list[i], hidacts,
+                               self.frows(i), self.fcols(i))
             assert_linear(f, self.s_hidacts_list[i])
 
     def test_grad(self):
@@ -273,28 +277,28 @@ class _TestWeightActs(unittest.TestCase):
 
 class _TestWeightActsF32(_TestWeightActs):
     dtype = 'float32'
-       
-    
+
+
 class TestImgActs(unittest.TestCase):
 
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
     ishape_list = [(10, 1, 98, 98)]
-    
-    #Each item in fshapes_list = (fmodules, filters_per_module, fcolors, frows, fcols)
+
+    #Each item in fshapes_list = (fmodules, filters_per_module,
+    #                             fcolors, frows, fcols)
     fshape_list = [(11, 32, 1, 11, 11)]
 
-    # Each item in hshapes_list = (hcount, fmodules, filter_per_module, hrows, hcols)
+    # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
+    #                              hrows, hcols)
     hshape_list = [(10, 11, 32, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'
     nbTests = len(ishape_list)
 
-
     # Utility functions
-
     def ishape(self, i):
         return self.ishape_list[i]
 
@@ -310,7 +314,6 @@ class TestImgActs(unittest.TestCase):
     def hshape(self, i):
         return self.hshape_list[i]
 
-
     def setUp(self):
         self.op = ImgActs(module_stride=self.module_stride)
 
@@ -319,9 +322,7 @@ class TestImgActs(unittest.TestCase):
         self.s_hidacts_list = [theano.shared(rand(hshape, self.dtype))
                                for hshape in self.hshape_list]
 
-
     # Test Cases
-
     def test_type(self):
 
         for i in range(self.nbTests):
@@ -336,23 +337,22 @@ class TestImgActs(unittest.TestCase):
             assert outval.shape == self.ishape(i)
             assert outval.dtype == self.dtype
 
-
     def test_linearity_filters(self):
-        for i in range(self.nbTests) :
+        for i in range(self.nbTests):
 
             def f(filts):
-                return self.op(filts, self.s_hidacts_list[i], self.irows(i), self.icols(i) )
+                return self.op(filts, self.s_hidacts_list[i],
+                               self.irows(i), self.icols(i))
             assert_linear(f, self.s_filters_list[i])
-
 
     def test_linearity_hidacts(self):
         for i in range(self.nbTests):
 
             def f(hidacts):
-                return self.op(self.s_filters_list[i], hidacts, self.irows(i), self.icols(i))
+                return self.op(self.s_filters_list[i], hidacts,
+                               self.irows(i), self.icols(i))
 
             assert_linear(f, self.s_hidacts_list[i])
-
 
     def test_grad(self):
         for i in range(self.nbTests):
