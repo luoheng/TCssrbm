@@ -1,5 +1,6 @@
 
 import sys
+import time
 import unittest
 import pdb
 
@@ -11,8 +12,10 @@ from unshared_conv_diagonally import FilterActs
 from unshared_conv_diagonally import WeightActs
 from unshared_conv_diagonally import ImgActs
 
+
 def rand(shp, dtype):
     return numpy.random.rand(*shp).astype(dtype)
+
 
 class TestImgActsSpeedF64(unittest.TestCase):
 
@@ -20,7 +23,7 @@ class TestImgActsSpeedF64(unittest.TestCase):
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
     ishape_list = [(10, 1, 98, 98)]
-    
+
     #Each item in fshapes_list = (fmodules, filters_per_module, 
     #                             fcolors, frows, fcols)
     fshape_list = [(11, 32, 1, 11, 11)]
@@ -32,10 +35,9 @@ class TestImgActsSpeedF64(unittest.TestCase):
     module_stride = 1
     dtype = 'float64'
     nbTests = len(ishape_list)
-
+    n_calls = 50
 
     # Utility functions
-
     def ishape(self, i):
         return self.ishape_list[i]
 
@@ -51,7 +53,6 @@ class TestImgActsSpeedF64(unittest.TestCase):
     def hshape(self, i):
         return self.hshape_list[i]
 
-
     def setUp(self):
         self.op = ImgActs(module_stride=self.module_stride)
 
@@ -60,31 +61,35 @@ class TestImgActsSpeedF64(unittest.TestCase):
         self.s_hidacts_list = [theano.shared(rand(hshape, self.dtype))
                                for hshape in self.hshape_list]
 
-
     # Test Cases
-
     def testMainOpSpeed(self):
-        
+#        mode = theano.Mode(linker=theano.gof.vm.VM_Linker(
+#            allow_gc=False,
+#            use_cloop=True))
         for i in range(self.nbTests):
-                                                 
+
             # Generate theano functions to run the op in python and in C
             output = self.op(self.s_filters_list[i], self.s_hidacts_list[i],
                              self.irows(i), self.icols(i))
-            
-            pyFunction = theano.function([],output,
+
+            pyFunction = theano.function([], output,
                                          mode=theano.Mode(linker='py'))
-            cFunction = theano.function([],output,
+
+            cFunction = theano.function([], output,
                                         mode=theano.Mode(linker='c'))
-            
-             
-            # Run the OP in python and (TODO)time it
-            for noRun in range(10):
-                pyResult = pyFunction()
-                                
+
+            # Run the OP in python
+            t0 = time.time()
+            [pyFunction() for i in range(self.n_calls)]
+            t1 = time.time()
+            print "py", t1 - t0,
+
             # Run the OP in C and (TODO)time it
-            for noRun in range(10):
-                cResult = cFunction()
-                    
+            t0 = time.time()
+            [cFunction() for i in range(self.n_calls)]
+            t1 = time.time()
+            print "c", t1 - t0
+
 
 class TestImgActsSpeedF32(unittest.TestCase):
     dtype = 'float32'
