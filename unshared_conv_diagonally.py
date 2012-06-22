@@ -97,9 +97,9 @@ class FilterActs(Base):
         #print 'into FilterActs.perform'
         images, filters = iargs
 
-	# icount : number of images in minibatch
-	# icolors : number of color channel in the image ( 1=grayscale, 3=RGB, ...)
-	# irows and icols : size of each image
+        # icount : number of images in minibatch
+        # icolors : number of color channel in the image ( 1=grayscale, 3=RGB, ...)
+        # irows and icols : size of each image
         icount, icolors, irows, icols = images.shape
         fmodules, filters_per_module, fcolors, frows, fcols = filters.shape
         
@@ -108,7 +108,7 @@ class FilterActs(Base):
         hidacts = numpy.zeros(hshape, dtype=images.dtype)
         for m in xrange(fmodules):
             for hR in xrange(hrows):
-	        for hC in xrange(hcols):
+                for hC in xrange(hcols):
                     img_r_offset = m*self.module_stride + hR*frows
                     img_c_offset = m*self.module_stride + hC*fcols
                     rc_images = images[:,:,
@@ -200,8 +200,8 @@ class WeightActs(Base):
                 [otype()])
 
     def perform(self, node, iargs, ostor):
-	#print 'into WeightActs.perform'
-	images, hidacts, frows, fcols = iargs
+        #print 'into WeightActs.perform'
+        images, hidacts, frows, fcols = iargs
 
         if frows != fcols:
             # this could be implemented, but GPU case doesn't do it
@@ -310,14 +310,14 @@ class ImgActs(Base):
         #print 'into ImgActs.perform' 
         filters, hidacts, irows, icols = iargs
 
-	# hcount : minibatch size (nb image passed)
-	# fmodules : For one position, how many filters
+        # hcount : minibatch size (nb image passed)
+        # fmodules : For one position, how many filters
         hcount, fmodules, filters_per_module, hrows, hcols = hidacts.shape
 
-	# fmodules : nb of modules ( module = group of non-overlaping filters )
-	# filters per module : nomber of filters on each position ('looking' at the same image area)
-	# fcolors : nb of color channels ( 1 for grayscale, 3 for RGB, ... )
-	# frows x fcols : size of filter
+        # fmodules : nb of modules ( module = group of non-overlaping filters )
+        # filters per module : nomber of filters on each position ('looking' at the same image area)
+        # fcolors : nb of color channels ( 1 for grayscale, 3 for RGB, ... )
+        # frows x fcols : size of filter
         fmodules_, filters_per_module_, fcolors, frows, fcols = filters.shape
         
         assert fmodules_==fmodules
@@ -386,11 +386,11 @@ class ImgActs(Base):
         // Validate the number of dimensions and the data type of the input tensors
         
         if (%(hidacts)s->nd != 5){
-	    PyErr_SetString(PyExc_ValueError, "hidacts not a 5d tensor");
+            PyErr_SetString(PyExc_ValueError, "hidacts not a 5d tensor");
         }
         
         if (%(filters)s->nd != 5){
-	    PyErr_SetString(PyExc_ValueError, "filters not a 5d tensor");
+            PyErr_SetString(PyExc_ValueError, "filters not a 5d tensor");
         }
         
         if ((%(hidacts)s->descr->type_num != PyArray_DOUBLE) && (%(hidacts)s->descr->type_num != PyArray_FLOAT)){
@@ -405,149 +405,185 @@ class ImgActs(Base):
         
         {   // New scope level to avoid cross-initialization
         
-	    // Extract input variables
-	    
-	    int hcount = %(hidacts)s->dimensions[0];
-	    int fmodules = %(hidacts)s->dimensions[1];
-	    int filters_per_module = %(hidacts)s->dimensions[2];
-	    int hrows = %(hidacts)s->dimensions[3];
-	    int hcols = %(hidacts)s->dimensions[4];
-	    
-	    int fmodules_ = %(filters)s->dimensions[0];
-	    int filters_per_module_ = %(filters)s->dimensions[1];
-	    int fcolors = %(filters)s->dimensions[2];
-	    int frows = %(filters)s->dimensions[3];
-	    int fcols = %(filters)s->dimensions[4];
-	    
-	    int irows = ((dtype_%(irows)s *) (%(irows)s->data))[0];
-	    int icols = ((dtype_%(icols)s *) (%(icols)s->data))[0];
-	    
-	    int module_stride = %(module_stride)s;
-	    
-	    
-	    // Validate the shape of the input tensors
-	    
-	    if ( hrows != hcols ){
-		PyErr_SetString(PyExc_ValueError, "non-square hidacts argument");
-	    }
-	    
-	    if ( frows != fcols ){
-		PyErr_SetString(PyExc_ValueError, "non-square filter shape");
-	    }
-	    
-	    if ( irows != icols ){
-		PyErr_SetString(PyExc_ValueError, "non-square image argument");
-	    }
-	    
-	    if ( fmodules_ != fmodules ){
-		PyErr_SetString(PyExc_ValueError, "inconsistent number of filter modules");
-	    }
-	    
-	    if ( filters_per_module_ != filters_per_module ){
-		PyErr_SetString(PyExc_ValueError, "inconsistent number of filtes by filter modules");
-	    }
-	    
-	    	    
-	    // Ensure output array is of the proper format
-	    
-	    if (NULL == %(output)s
-		|| (%(output)s->dimensions[0] != hcount) || (%(output)s->dimensions[1] != fcolors)
-		|| (%(output)s->dimensions[2] != irows)  || (%(output)s->dimensions[3] != icols)
-		|| (!PyArray_ISBEHAVED(%(output)s))
-		|| ((%(output)s->descr->type_num != PyArray_DOUBLE) && (%(output)s->descr->type_num != PyArray_FLOAT)) )
-	    {
-		// The output array has not been declared or is of an invalid format.
-		
-		if (NULL != %(output)s) Py_XDECREF(%(output)s);
-		
-		npy_intp outputDims[4];
-		outputDims[0] = hcount;
-		outputDims[1] = fcolors;
-		outputDims[2] = irows;
-		outputDims[3] = icols;
-	    
-		%(output)s = (PyArrayObject*)PyArray_ZEROS(4, outputDims, %(filters)s->descr->type_num, 0);
-		if(!%(output)s) {
-		    PyErr_SetString(PyExc_MemoryError, "failed to alloc memory for output");
-		    %(fail)s
-		}
-		
-	    }else{
-	    
-		// The output array is of the proper format. Its content must be initialized to zeros.
-		
-		// This loop simply goes through all the data in the output array, setting it to 0.0
-		for(int count=0; count < hcount; count++){
-		    for(int color=0; color < fcolors; color++){
-			for(int row=0; row < irows; row++){
-			    for(int col=0; col < icols; col++){
-				((dtype_%(output)s*)PyArray_GETPTR4(%(output)s, count, color, row, col))[0] = 0.0f;    	
-			    }
-			}
-		    }
-		}
-		
-	    }
-	    
-	    
-	    // Compute the output
-
-	    npy_intp hidacts_data_indexes[5];
-	    npy_intp filters_data_indexes[5];
-	    
-	    for(int m=0; m < fmodules; m++){
-	    
-	        hidacts_data_indexes[1] = m;
-	        filters_data_indexes[0] = m;
-	    
-		for(int hR=0; hR < hrows; hR++){
-		
-		    hidacts_data_indexes[3] = hR;
-		
-		    for(int hC=0; hC < hcols; hC++){
-		    
-			hidacts_data_indexes[4] = hC;
-		    
-			int img_r_offset = m * module_stride + hR * frows;
-			int img_c_offset = m * module_stride + hC * frows;
-			
-			for(int icountIndex=0; icountIndex < hcount; icountIndex++){
-			
-			    hidacts_data_indexes[0] = icountIndex;
-			    
-			    for(int fcolorsIndex=0; fcolorsIndex < fcolors; fcolorsIndex++){
-			    
-				filters_data_indexes[2] = fcolorsIndex;
-			    
-				for(int frowsIndex=0; frowsIndex < frows; frowsIndex++){
-				
-				    filters_data_indexes[3] = frowsIndex;
-				
-				    for(int fcolsIndex=0; fcolsIndex < fcols; fcolsIndex++){
-				    
-					filters_data_indexes[4] = fcolsIndex;
-				    
-					for(int filter=0; filter < filters_per_module_; filter++){
-					
-					    hidacts_data_indexes[2] = filter;
-					    filters_data_indexes[1] = filter;
-				
-					    ((dtype_%(output)s*)PyArray_GETPTR4(%(output)s, icountIndex, fcolorsIndex, img_r_offset+frowsIndex, img_c_offset+fcolsIndex))[0] += 
-							      ( (dtype_%(hidacts)s*)PyArray_GetPtr(%(hidacts)s, hidacts_data_indexes) )[0] * 
-							      ( (dtype_%(filters)s*)PyArray_GetPtr(%(filters)s, filters_data_indexes) )[0];
-							      
-					}
-				    
-				    }
-				} 
-			    } 
-			}
-			
-	    
-		    }
-		}
-	    }
-	    
+            // Extract input variables
+            
+            int hcount = %(hidacts)s->dimensions[0];
+            int fmodules = %(hidacts)s->dimensions[1];
+            int filters_per_module = %(hidacts)s->dimensions[2];
+            int hrows = %(hidacts)s->dimensions[3];
+            int hcols = %(hidacts)s->dimensions[4];
+            
+            int fmodules_ = %(filters)s->dimensions[0];
+            int filters_per_module_ = %(filters)s->dimensions[1];
+            int fcolors = %(filters)s->dimensions[2];
+            int frows = %(filters)s->dimensions[3];
+            int fcols = %(filters)s->dimensions[4];
+            
+            int irows = ((dtype_%(irows)s *) (%(irows)s->data))[0];
+            int icols = ((dtype_%(icols)s *) (%(icols)s->data))[0];
+            
+            int module_stride = %(module_stride)s;
+            
+            
+            // Validate the shape of the input tensors
+            
+            if ( hrows != hcols ){
+                PyErr_SetString(PyExc_ValueError, "non-square hidacts argument");
+            }
+            
+            if ( frows != fcols ){
+                PyErr_SetString(PyExc_ValueError, "non-square filter shape");
+            }
+            
+            if ( irows != icols ){
+                PyErr_SetString(PyExc_ValueError, "non-square image argument");
+            }
+            
+            if ( fmodules_ != fmodules ){
+                PyErr_SetString(PyExc_ValueError, "inconsistent number of filter modules");
+            }
+            
+            if ( filters_per_module_ != filters_per_module ){
+                PyErr_SetString(PyExc_ValueError, "inconsistent number of filtes by filter modules");
+            }
+            
+                    
+            // Ensure output array is of the proper format
+            
+            if (NULL == %(output)s
+                || (%(output)s->dimensions[0] != hcount) || (%(output)s->dimensions[1] != fcolors)
+                || (%(output)s->dimensions[2] != irows)  || (%(output)s->dimensions[3] != icols)
+                || (!PyArray_ISBEHAVED(%(output)s))
+                || ((%(output)s->descr->type_num != PyArray_DOUBLE) && (%(output)s->descr->type_num != PyArray_FLOAT)) )
+            {
+                // The output array has not been declared or is of an invalid format.
+                
+                if (NULL != %(output)s) Py_XDECREF(%(output)s);
+                
+                npy_intp outputDims[4];
+                outputDims[0] = hcount;
+                outputDims[1] = fcolors;
+                outputDims[2] = irows;
+                outputDims[3] = icols;
+            
+                %(output)s = (PyArrayObject*)PyArray_ZEROS(4, outputDims, %(filters)s->descr->type_num, 0);
+                if(!%(output)s) {
+                    PyErr_SetString(PyExc_MemoryError, "failed to alloc memory for output");
+                    %(fail)s
+                }
+                
+            }else{
+            
+                // The output array is of the proper format. Its content must be initialized to zeros.
+                
+                // This loop simply goes through all the data in the output array, setting it to 0.0
+                for(int count=0; count < hcount; count++){
+                    for(int color=0; color < fcolors; color++){
+                        for(int row=0; row < irows; row++){
+                            for(int col=0; col < icols; col++){
+                                ((dtype_%(output)s*)PyArray_GETPTR4(%(output)s, count, color, row, col))[0] = 0.0f;     
+                            }
+                        }
+                    }
+                }
+                
+            }
+            
+            
+            // Extract the arrays' strides
+            
+            npy_intp hidacts_count_stride = PyArray_STRIDE(%(hidacts)s, 0) / PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_fmodules_stride = PyArray_STRIDE(%(hidacts)s, 1) / PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_filter_stride = PyArray_STRIDE(%(hidacts)s, 2) / PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_hrows_stride = PyArray_STRIDE(%(hidacts)s, 3) / PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_hcols_stride = PyArray_STRIDE(%(hidacts)s, 4) / PyArray_ITEMSIZE(%(hidacts)s);
+            
+            npy_intp filters_fmodule_stride = PyArray_STRIDE(%(filters)s, 0) / PyArray_ITEMSIZE(%(filters)s);
+            npy_intp filters_filter_stride = PyArray_STRIDE(%(filters)s, 1) / PyArray_ITEMSIZE(%(filters)s);
+            npy_intp filters_fcolor_stride = PyArray_STRIDE(%(filters)s, 2) / PyArray_ITEMSIZE(%(filters)s);
+            npy_intp filters_frows_stride = PyArray_STRIDE(%(filters)s, 3) / PyArray_ITEMSIZE(%(filters)s);
+            npy_intp filters_fcols_stride = PyArray_STRIDE(%(filters)s, 4) / PyArray_ITEMSIZE(%(filters)s);
+            
+            // Compute the output
+            
+            dtype_%(hidacts)s* next_hidacts_element = (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
+            dtype_%(filters)s* next_filters_element = (dtype_%(filters)s*)PyArray_DATA(%(filters)s);
+            
+            for(int m=0; m < fmodules; m++){
+            
+                next_hidacts_element += m * hidacts_fmodules_stride;
+                next_filters_element += m * filters_fmodule_stride;
+             
+            
+                for(int hR=0; hR < hrows; hR++){
+                
+                    next_hidacts_element += hR * hidacts_hrows_stride;
+                    
+                
+                    for(int hC=0; hC < hcols; hC++){
+                    
+                        next_hidacts_element += hC * hidacts_hcols_stride;
+                        
+                        int img_r_offset = m * module_stride + hR * frows;
+                        int img_c_offset = m * module_stride + hC * frows;
+                        
+                        
+                        for(int icountIndex=0; icountIndex < hcount; icountIndex++){
+                        
+                            next_hidacts_element += icountIndex * hidacts_count_stride;
+                        
+                            
+                            for(int fcolorsIndex=0; fcolorsIndex < fcolors; fcolorsIndex++){
+                            
+                                next_filters_element += fcolorsIndex * filters_fcolor_stride;
+                                
+                            
+                                for(int frowsIndex=0; frowsIndex < frows; frowsIndex++){
+                                
+                                    next_filters_element += frowsIndex * filters_frows_stride;
+                                
+                                
+                                    for(int fcolsIndex=0; fcolsIndex < fcols; fcolsIndex++){
+                                    
+                                        next_filters_element += fcolsIndex * filters_fcols_stride;
+                                    
+                                        
+                                        dtype_%(output)s* result_ptr = ((dtype_%(output)s*)PyArray_GETPTR4(%(output)s, icountIndex, fcolorsIndex, img_r_offset+frowsIndex, img_c_offset+fcolsIndex));
+                                    
+                                        for(int filter=0; filter < filters_per_module_; filter++){
+                                        
+                                            next_hidacts_element += filter * hidacts_filter_stride; 
+                                            next_filters_element += filter * filters_filter_stride;
+                                            
+                                            result_ptr[0] += next_hidacts_element[0] * next_filters_element[0];
+                                                             
+                                            next_hidacts_element -= filter * hidacts_filter_stride;
+                                            next_filters_element -= filter * filters_filter_stride;
+                                                              
+                                        }
+                                        
+                                        next_filters_element -= fcolsIndex * filters_fcols_stride;
+                                    }
+                                    
+                                    next_filters_element -= frowsIndex * filters_frows_stride;
+                                }
+                                
+                                next_filters_element -= fcolorsIndex * filters_fcolor_stride;
+                            }
+                            
+                            next_hidacts_element -= icountIndex * hidacts_count_stride;
+                        }
+                        
+                        next_hidacts_element -= hC * hidacts_hcols_stride;
+                    }
+                    
+                    next_hidacts_element -= hR * hidacts_hrows_stride;
+                }
+                
+                next_hidacts_element -= m * hidacts_fmodules_stride;
+                next_filters_element -= m * filters_fmodule_stride;
+            }
+            
         
         }
         
