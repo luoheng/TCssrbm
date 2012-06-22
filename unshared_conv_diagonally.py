@@ -55,7 +55,6 @@ class FilterActs(Base):
     def infer_shape_without_instance(cls, ishape, fshape):
         icount, icolors, irows, icols = ishape
         fmodules, filters_per_module, fcolors, frows, fcols = fshape
-       
 
         if not any_symbolic(irows, icols) and irows != icols:
             raise ValueError("non-square image argument",
@@ -69,12 +68,12 @@ class FilterActs(Base):
                     (icolors, fcolors))
         if (irows < frows or icols < fcols):
             raise ValueError("filters' size is too small",
-                    (irows, icols))            
-        hrows = irows/frows
-        hcols = icols/fcols
+                    (irows, icols))
+        hrows = irows / frows
+        hcols = icols / fcols
         hshape = (icount, fmodules, filters_per_module, hrows, hcols)
         return hshape
-        
+
     def make_node(self, images, filters):
         images = theano.tensor.as_tensor_variable(images)
         filters = theano.tensor.as_tensor_variable(filters)
@@ -97,26 +96,26 @@ class FilterActs(Base):
         #print 'into FilterActs.perform'
         images, filters = iargs
 
-	# icount : number of images in minibatch
-	# icolors : number of color channel in the image ( 1=grayscale, 3=RGB, ...)
-	# irows and icols : size of each image
+        # icount : number of images in minibatch
+        # icolors : number of color channel in the image ( 1=grayscale, 3=RGB, ...)
+        # irows and icols : size of each image
         icount, icolors, irows, icols = images.shape
         fmodules, filters_per_module, fcolors, frows, fcols = filters.shape
-        
+
         hshape = self.infer_shape(node, (images.shape, filters.shape))[0]
         _, _, _, hrows, hcols = hshape
         hidacts = numpy.zeros(hshape, dtype=images.dtype)
         for m in xrange(fmodules):
             for hR in xrange(hrows):
-	        for hC in xrange(hcols):
-                    img_r_offset = m*self.module_stride + hR*frows
-                    img_c_offset = m*self.module_stride + hC*fcols
-                    rc_images = images[:,:,
+                img_r_offset = m * self.module_stride + hR * frows
+                for hC in xrange(hcols):
+                    img_c_offset = m * self.module_stride + hC * fcols
+                    rc_images = images[:, :,
                             img_r_offset:img_r_offset + frows,
                             img_c_offset:img_c_offset + fcols]
-                    rc_filters = filters[m, :, :, :, :]
-                    # rc_images are count x fcolors x frows x fcols 
-                    # rc_filters are fpm x fcolors x frows x fcols  
+                    rc_filters = filters[m]
+                    # rc_images are count x fcolors x frows x fcols
+                    # rc_filters are fpm x fcolors x frows x fcols
                     rc_hidacts = numpy.dot(
                         rc_images.reshape(icount, -1),
                         rc_filters.reshape(filters_per_module, -1).T
@@ -143,7 +142,7 @@ class FilterActs(Base):
         ishape, fshape = shapes
 
         icount, icolors, irows, icols = ishape
-        fmodules, filters_per_module, fcolors, frows, fcols = fshape       
+        fmodules, filters_per_module, fcolors, frows, fcols = fshape
         if not any_symbolic(irows, icols) and irows != icols:
             raise ValueError("non-square image argument",
                     (irows, icols))
@@ -154,13 +153,13 @@ class FilterActs(Base):
                 and icolors != fcolors):
             raise ValueError("color counts don't match",
                     (icolors, fcolors))
-        """            
+        """
         if (irows < frows or icols < fcols):
             raise ValueError("filters' size is too small",
                     (irows, icols))           
-        """            
-        hrows = irows/frows
-        hcols = icols/fcols
+        """
+        hrows = irows / frows
+        hcols = icols / fcols
         hshape = (icount, fmodules, filters_per_module, hrows, hcols)
         return [hshape]
 
