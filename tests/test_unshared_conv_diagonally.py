@@ -40,15 +40,15 @@ class _TestFilterActs(unittest.TestCase):
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
     #ishape_list = [(1, 1, 98, 98),(2, 3, 24, 24)]
-    ishape_list = [(1, 1, 23, 23)]
+    ishape_list = [(20, 1, 98, 98)]
     
     #Each item in fshapes_list = (fmodules, filters_per_module, fcolors, frows, fcols)
     #fshape_list = [(11, 32, 1, 11, 11),(1, 1, 3, 6, 6)]
-    fshape_list = [(2, 1, 1, 11, 11)]
+    fshape_list = [(11, 32, 1, 11, 11)]
     
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module, hrows, hcols)
     #hshape_list = [(1, 11, 32, 8, 8),(2, 1, 1, 6, 6 )]
-    hshape_list = [(1, 2, 1, 2, 2)]
+    hshape_list = [(20, 11, 32, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'
@@ -174,18 +174,15 @@ class _TestWeightActs(unittest.TestCase):
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
     #ishape_list = [(1, 1, 98, 98),(2, 3, 24, 24)]
-    ishape_list = [(1, 1, 98, 98)]
-    ishape_list = [(1, 1, 23, 23)]
+    ishape_list = [(10, 1, 98, 98)]
     
     #Each item in fshapes_list = (fmodules, filters_per_module, fcolors, frows, fcols)
     #fshape_list = [(11, 32, 1, 11, 11),(1, 1, 3, 6, 6)]
-    fshape_list = [(11, 2, 1, 11, 11)]
-    fshape_list = [(2, 1, 1, 11, 11)]
+    fshape_list = [(11, 32, 1, 11, 11)]
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module, hrows, hcols)
     #hshape_list = [(1, 11, 32, 8, 8),(2, 1, 1, 6, 6 )]
-    hshape_list = [(1, 11, 2, 8, 8)]
-    hshape_list = [(1, 2, 1, 2, 2)]
+    hshape_list = [(10, 11, 32, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'
@@ -283,19 +280,13 @@ class TestImgActs(unittest.TestCase):
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
-    #ishape_list = [(1, 1, 98, 98),(2, 3, 24, 24)]
-    #ishape_list = [(1, 1, 98, 98)]
-    ishape_list = [(2, 2, 5, 5)]
-
+    ishape_list = [(10, 1, 98, 98)]
+    
     #Each item in fshapes_list = (fmodules, filters_per_module, fcolors, frows, fcols)
-    #fshape_list = [(11, 32, 1, 11, 11),(1, 1, 3, 6, 6)]
-    #fshape_list = [(11, 2, 1, 11, 11)]
-    fshape_list = [(2, 2, 2, 2, 2)]
+    fshape_list = [(11, 32, 1, 11, 11)]
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module, hrows, hcols)
-    #hshape_list = [(1, 11, 32, 8, 8),(2, 1, 1, 6, 6 )]
-    #hshape_list = [(1, 11, 2, 8, 8)]
-    hshape_list = [(2, 2, 2, 2, 2)]
+    hshape_list = [(10, 11, 32, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'
@@ -392,5 +383,5 @@ class TestImgActs(unittest.TestCase):
                     self.irows(i), self.icols(i))
 
 
-class TestImgActsF32(TestImgActs):
+class _TestImgActsF32(TestImgActs):
     dtype = 'float32'
