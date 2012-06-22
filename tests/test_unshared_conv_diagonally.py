@@ -34,7 +34,7 @@ def assert_linear(f, pt, mode=None):
     assert numpy.allclose(out3val, out4val)
 
 
-class _TestFilterActs(unittest.TestCase):
+class TestFilterActs(unittest.TestCase):
 
     # Global test variables (may be extended to include more tests)
 
@@ -165,11 +165,11 @@ class _TestFilterActs(unittest.TestCase):
         assert FilterActs(1) != None
 
 
-class _TestFilterActsF32(_TestFilterActs):
+class TestFilterActsF32(TestFilterActs):
     dtype = 'float32'
 
 
-class _TestWeightActs(unittest.TestCase):
+class TestWeightActs(unittest.TestCase):
 
     # Global test variables (may be extended to include more tests)
 
@@ -275,7 +275,7 @@ class _TestWeightActs(unittest.TestCase):
                     self.frows, self.fcols)
 
 
-class _TestWeightActsF32(_TestWeightActs):
+class TestWeightActsF32(TestWeightActs):
     dtype = 'float32'
 
 
@@ -383,5 +383,5 @@ class TestImgActs(unittest.TestCase):
                     self.irows(i), self.icols(i))
 
 
-class _TestImgActsF32(TestImgActs):
+class TestImgActsF32(TestImgActs):
     dtype = 'float32'
