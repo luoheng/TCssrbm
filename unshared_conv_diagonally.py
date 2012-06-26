@@ -354,6 +354,7 @@ class ImgActs(Base):
                     
                     img_r_offset = m*self.module_stride + hR*frows
                     img_c_offset = m*self.module_stride + hC*fcols
+                                        
                     images[:,:,
                             img_r_offset:img_r_offset + frows,
                             img_c_offset:img_c_offset + fcols
@@ -503,10 +504,16 @@ class ImgActs(Base):
             npy_intp filters_frows_stride = PyArray_STRIDE(%(filters)s, 3) / PyArray_ITEMSIZE(%(filters)s);
             npy_intp filters_fcols_stride = PyArray_STRIDE(%(filters)s, 4) / PyArray_ITEMSIZE(%(filters)s);
             
-            // Compute the output
+            npy_intp output_count_stride = PyArray_STRIDE(%(output)s, 0) / PyArray_ITEMSIZE(%(output)s);
+            npy_intp output_color_stride = PyArray_STRIDE(%(output)s, 1) / PyArray_ITEMSIZE(%(output)s);
+            npy_intp output_frows_stride = PyArray_STRIDE(%(output)s, 2) / PyArray_ITEMSIZE(%(output)s);
+            npy_intp output_fcols_stride = PyArray_STRIDE(%(output)s, 3) / PyArray_ITEMSIZE(%(output)s);
             
+            // Compute the output           
             dtype_%(hidacts)s* next_hidacts_element = (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
             dtype_%(filters)s* next_filters_element = (dtype_%(filters)s*)PyArray_DATA(%(filters)s);
+            dtype_%(hidacts)s* next_output_element = (dtype_%(output)s*)PyArray_DATA(%(output)s);
+            
             
             for(int m=0; m < fmodules; m++){
             
@@ -517,60 +524,58 @@ class ImgActs(Base):
                 for(int hR=0; hR < hrows; hR++){
                 
                     next_hidacts_element += hR * hidacts_hrows_stride;
+                    int img_r_offset = m * module_stride + hR * frows;
                     
                 
                     for(int hC=0; hC < hcols; hC++){
                     
                         next_hidacts_element += hC * hidacts_hcols_stride;
-                        
-                        int img_r_offset = m * module_stride + hR * frows;
                         int img_c_offset = m * module_stride + hC * frows;
                         
                         
                         for(int icountIndex=0; icountIndex < hcount; icountIndex++){
                         
                             next_hidacts_element += icountIndex * hidacts_count_stride;
+                            next_output_element += icountIndex * output_count_stride;
                         
                             
                             for(int fcolorsIndex=0; fcolorsIndex < fcolors; fcolorsIndex++){
                             
                                 next_filters_element += fcolorsIndex * filters_fcolor_stride;
+                                next_output_element += fcolorsIndex * output_color_stride;
                                 
                             
                                 for(int frowsIndex=0; frowsIndex < frows; frowsIndex++){
                                 
                                     next_filters_element += frowsIndex * filters_frows_stride;
-                                
+                                    next_output_element += (img_r_offset + frowsIndex) * output_frows_stride;
                                 
                                     for(int fcolsIndex=0; fcolsIndex < fcols; fcolsIndex++){
                                     
                                         next_filters_element += fcolsIndex * filters_fcols_stride;
-                                    
+                                        next_output_element += (img_c_offset+fcolsIndex) * output_fcols_stride;
                                         
-                                        dtype_%(output)s* result_ptr = ((dtype_%(output)s*)PyArray_GETPTR4(%(output)s, icountIndex, fcolorsIndex, img_r_offset+frowsIndex, img_c_offset+fcolsIndex));
-                                    
                                         for(int filter=0; filter < filters_per_module_; filter++){
-                                        
-                                            next_hidacts_element += filter * hidacts_filter_stride; 
-                                            next_filters_element += filter * filters_filter_stride;
-                                            
-                                            result_ptr[0] += next_hidacts_element[0] * next_filters_element[0];
-                                                             
-                                            next_hidacts_element -= filter * hidacts_filter_stride;
-                                            next_filters_element -= filter * filters_filter_stride;
-                                                              
+                                                                                   
+                                            next_output_element[0] += (next_hidacts_element + filter * hidacts_filter_stride)[0] * 
+                                                                      (next_filters_element + filter * filters_filter_stride)[0];
+                                                                            
                                         }
                                         
                                         next_filters_element -= fcolsIndex * filters_fcols_stride;
+                                        next_output_element -= (img_c_offset+fcolsIndex) * output_fcols_stride;
                                     }
                                     
                                     next_filters_element -= frowsIndex * filters_frows_stride;
+                                    next_output_element -= (img_r_offset + frowsIndex) * output_frows_stride;
                                 }
                                 
                                 next_filters_element -= fcolorsIndex * filters_fcolor_stride;
+                                next_output_element -= fcolorsIndex * output_color_stride;
                             }
                             
                             next_hidacts_element -= icountIndex * hidacts_count_stride;
+                            next_output_element -= icountIndex * output_count_stride;
                         }
                         
                         next_hidacts_element -= hC * hidacts_hcols_stride;

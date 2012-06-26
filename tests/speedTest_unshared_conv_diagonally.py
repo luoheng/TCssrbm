@@ -91,5 +91,5 @@ class TestImgActsSpeedF64(unittest.TestCase):
             print "c", t1 - t0
 
 
-class TestImgActsSpeedF32(unittest.TestCase):
+class TestImgActsSpeedF32(TestImgActsSpeedF64):
     dtype = 'float32'
