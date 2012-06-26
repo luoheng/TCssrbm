@@ -294,6 +294,7 @@ class TestImgActs(unittest.TestCase):
     #                              hrows, hcols)
     hshape_list = [(10, 11, 32, 8, 8)]
 
+    
     module_stride = 1
     dtype = 'float64'
     nbTests = len(ishape_list)
