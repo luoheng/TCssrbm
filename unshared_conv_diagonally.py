@@ -108,6 +108,12 @@ class FilterActs(Base):
         hshape = self.infer_shape(node, (images.shape, filters.shape))[0]
         _, _, _, hrows, hcols = hshape
         hidacts = numpy.zeros(hshape, dtype=images.dtype)
+        if (icols // fcols) * fcols + fmodules -1 > icols:
+            raise Exception(self.__class__.__name__ +
+                            ": (icols // fcols) * fcols + fmodules <= icols must be True")
+        if (irows // frows) * frows + fmodules -1 > irows:
+            raise Exception(self.__class__.__name__ +
+                            ": (irows // frows) * frows + fmodules <= irows must be True")
         for m in xrange(fmodules):
             for hR in xrange(hrows):
                 img_r_offset = m * self.module_stride + hR * frows
@@ -124,6 +130,29 @@ class FilterActs(Base):
                         rc_filters.reshape(filters_per_module, -1).T
                         )
                     hidacts[:, m, :, hR, hC] = rc_hidacts
+        if False:
+            # I didn't run all the tests as this is too long, but it seam good.
+            hidacts2 = numpy.zeros(hshape, dtype=images.dtype)
+            for m in xrange(fmodules):
+                for hR in xrange(hrows):
+                    img_r_offset = m * self.module_stride + hR * frows
+                    for hC in xrange(hcols):
+                        img_c_offset = m * self.module_stride + hC * fcols
+                        rc_images = images[:, :,
+                                           img_r_offset:img_r_offset + frows,
+                                           img_c_offset:img_c_offset + fcols]
+                        rc_filters = filters[m]
+                        # rc_images are count x fcolors x frows x fcols
+                        # rc_filters are fpm x fcolors x frows x fcols
+                        A = rc_images.reshape(icount, -1)
+                        B = rc_filters.reshape(filters_per_module, -1).T
+                        for i in range(A.shape[0]):
+                            for j in range(B.shape[1]):
+                                s = 0
+                                for k in range(A.shape[1]):
+                                    s += A.item(i, k) * B.item(k, j)
+                                hidacts2[i, m, j, hR, hC] = s
+            assert numpy.allclose(hidacts, hidacts2)
         ostor[0][0] = hidacts
         #print 'exiting FilterActs.perform'
         if 0:
