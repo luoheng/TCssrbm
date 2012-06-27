@@ -177,3 +177,60 @@ class TestImgActsSpeed(unittest.TestCase):
 
 class TestImgActsSpeedF32(TestImgActsSpeed):
     dtype = 'float32'
+
+
+class TestFiltersActsSpeedF64(unittest.TestCase):
+
+    # Global test variables (may be extended to include more tests)
+
+    #Each item in ishape_list : (icount, icolors, irows, icols)
+    ishape_list = [(2, 1, 49, 49), (10, 1, 49, 49), (10, 1, 98, 98)]
+
+    #Each item in fshapes_list = (fmodules, filters_per_module,
+    #                             fcolors, frows, fcols)
+    fshape_list = [(5, 32, 1, 11, 11), (5, 32, 1, 11, 11), (11, 32, 1, 11, 11)]
+
+    module_stride = 1
+    dtype = 'float64'
+    nbTests = len(ishape_list)
+    n_calls = 50
+
+    def setUp(self):
+        self.op = FilterActs(module_stride=self.module_stride)
+
+        self.s_filters_list = [theano.shared(rand(fshape, self.dtype))
+                               for fshape in self.fshape_list]
+        self.s_images_list = [theano.shared(rand(ishape, self.dtype))
+                               for ishape in self.ishape_list]
+
+    # Test Cases
+    def testMainOpSpeed(self):
+        for i in range(self.nbTests):
+            print "image shape", self.ishape_list[i]
+            print "filter shape", self.fshape_list[i]
+            # Generate theano functions to run the op in python and in C
+            output = self.op(self.s_images_list[i], self.s_filters_list[i])
+
+            pyFunction = theano.function([], output,
+                                         mode=theano.Mode(linker='py'))
+
+            cFunction = theano.function([], output,
+                                        mode=theano.Mode(linker='c'))
+
+            # Run the OP in python
+            t0 = time.time()
+            [pyFunction() for i in range(self.n_calls)]
+            t1 = time.time()
+            py_t = t1 - t0
+            print "py", py_t
+
+            # Run the OP in C
+            t0 = time.time()
+            [cFunction() for i in range(self.n_calls)]
+            t1 = time.time()
+            c_t = t1 - t0
+            print "c", c_t, "speed up", py_t / c_t
+
+
+class TestFiltersActsSpeedF32(TestFiltersActsSpeedF64):
+    dtype = 'float32'
