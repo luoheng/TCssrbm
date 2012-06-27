@@ -200,11 +200,18 @@ class TestFiltersActsSpeedF64(unittest.TestCase):
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
-    ishape_list = [(2, 1, 49, 49), (10, 1, 49, 49), (10, 1, 98, 98)]
+    ishape_list = [(2, 1, 49, 49), (10, 1, 49, 49),
+                   (10, 1, 98, 98), (10, 1, 98, 98),
+                   (10, 1, 98, 98),
+    ]
 
     #Each item in fshapes_list = (fmodules, filters_per_module,
     #                             fcolors, frows, fcols)
-    fshape_list = [(5, 32, 1, 11, 11), (5, 32, 1, 11, 11), (11, 32, 1, 11, 11)]
+    fshape_list = [(5, 32, 1, 11, 11), (5, 32, 1, 11, 11),
+                   (9, 32, 1, 9, 9),
+                   (9, 32, 1, 10, 10), (9, 32, 1, 11, 11),
+
+    ]
 
     module_stride = 1
     dtype = 'float64'
@@ -212,7 +219,10 @@ class TestFiltersActsSpeedF64(unittest.TestCase):
     n_calls = 50
 
     def setUp(self):
-        self.op = FilterActs(module_stride=self.module_stride)
+        self.op = FilterActs(module_stride=self.module_stride,
+                                   openmp=False)
+        self.op_omp = FilterActs(module_stride=self.module_stride,
+                                    openmp=True)
 
         self.s_filters_list = [theano.shared(rand(fshape, self.dtype))
                                for fshape in self.fshape_list]
@@ -221,31 +231,69 @@ class TestFiltersActsSpeedF64(unittest.TestCase):
 
     # Test Cases
     def testMainOpSpeed(self):
+        def do_time(output, mode=theano.Mode(linker='c')):
+            f = theano.function([], output, mode=mode)
+            t0 = time.time()
+            [f() for i in range(self.n_calls)]
+            t1 = time.time()
+            return t1 - t0
+
         for i in range(self.nbTests):
             print "image shape", self.ishape_list[i]
             print "filter shape", self.fshape_list[i]
             # Generate theano functions to run the op in python and in C
             output = self.op(self.s_images_list[i], self.s_filters_list[i])
-
-            pyFunction = theano.function([], output,
-                                         mode=theano.Mode(linker='py'))
-
-            cFunction = theano.function([], output,
-                                        mode=theano.Mode(linker='c'))
+            output_omp = self.op_omp(self.s_images_list[i],
+                                     self.s_filters_list[i])
+            output_fcols = FilterActs(module_stride=self.module_stride,
+                                      openmp=False,
+                                      fcols=self.fshape_list[i][-1])(
+                                          self.s_images_list[i],
+                                          self.s_filters_list[i])
+            output_fcols_omp = FilterActs(module_stride=self.module_stride,
+                                      openmp=True,
+                                      fcols=self.fshape_list[i][-1])(
+                                          self.s_images_list[i],
+                                          self.s_filters_list[i])
+            output_frows_fcols = FilterActs(module_stride=self.module_stride,
+                                      openmp=False,
+                                      fcols=self.fshape_list[i][-1],
+                                      frows=self.fshape_list[i][-2])(
+                                          self.s_images_list[i],
+                                          self.s_filters_list[i])
+            output_frows_fcols_omp = FilterActs(module_stride=self.module_stride,
+                                      openmp=True,
+                                      fcols=self.fshape_list[i][-1],
+                                      frows=self.fshape_list[i][-2])(
+                                          self.s_images_list[i],
+                                          self.s_filters_list[i])
 
             # Run the OP in python
-            t0 = time.time()
-            [pyFunction() for i in range(self.n_calls)]
-            t1 = time.time()
-            py_t = t1 - t0
+            py_t = do_time(output, mode=theano.Mode(linker='py'))
             print "py", py_t
 
             # Run the OP in C
-            t0 = time.time()
-            [cFunction() for i in range(self.n_calls)]
-            t1 = time.time()
-            c_t = t1 - t0
-            print "c", c_t, "speed up", py_t / c_t
+            c_t = do_time(output, mode=theano.Mode(linker='c|py'))
+            print "c|py", c_t, "speed up", py_t / c_t
+
+            # Run the OP in C with fcols
+            c_t_fcols = do_time(output_fcols)
+            print "c fcols", c_t_fcols, "speed up", py_t / c_t_fcols
+
+            # Run the OP in C with fcols, frows
+            c_t_frows_fcols = do_time(output_frows_fcols)
+            print "c frows_fcols", c_t_frows_fcols, "speed up", py_t / c_t_frows_fcols
+
+            # Run the Op in C with openmp
+            if theano.config.openmp:
+                c_omp_t = do_time(output_omp)
+                print "omp c", c_omp_t, "speed up python", py_t / c_omp_t, "speed up c", c_t / c_omp_t
+
+                c_omp_fcols_t = do_time(output_fcols_omp)
+                print "omp c fcols", c_omp_fcols_t, "speed up python", py_t / c_omp_fcols_t, "speed up c fcols", c_t_fcols / c_omp_fcols_t
+
+                c_omp_frows_fcols_t = do_time(output_frows_fcols_omp)
+                print "omp c fcols", c_omp_frows_fcols_t, "speed up python", py_t / c_omp_frows_fcols_t, "speed up c frows_fcols", c_t_frows_fcols / c_omp_frows_fcols_t
 
 
 class TestFiltersActsSpeedF32(TestFiltersActsSpeedF64):
