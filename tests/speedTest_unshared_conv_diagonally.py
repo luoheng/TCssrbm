@@ -138,7 +138,8 @@ class TestImgActsSpeed(unittest.TestCase):
         return self.hshape_list[i]
 
     def setUp(self):
-        self.op = ImgActs(module_stride=self.module_stride)
+        self.op = ImgActs(module_stride=self.module_stride, openmp=False)
+        self.op_omp = ImgActs(module_stride=self.module_stride, openmp=True)
 
         self.s_filters_list = [theano.shared(rand(fshape, self.dtype))
                                for fshape in self.fshape_list]
@@ -155,6 +156,9 @@ class TestImgActsSpeed(unittest.TestCase):
             # Generate theano functions to run the op in python and in C
             output = self.op(self.s_filters_list[i], self.s_hidacts_list[i],
                              self.irows(i), self.icols(i))
+            output_omp = self.op_omp(self.s_filters_list[i],
+                                     self.s_hidacts_list[i],
+                                     self.irows(i), self.icols(i))
 
             pyFunction = theano.function([], output,
                                          mode=theano.Mode(linker='py'))
@@ -162,17 +166,29 @@ class TestImgActsSpeed(unittest.TestCase):
             cFunction = theano.function([], output,
                                         mode=theano.Mode(linker='c'))
 
+            cFunction2 = theano.function([], output_omp,
+                                        mode=theano.Mode(linker='c'))
             # Run the OP in python
             t0 = time.time()
             [pyFunction() for i in range(self.n_calls)]
             t1 = time.time()
-            print "py", t1 - t0,
+            py_t = t1 - t0
+            print "py", py_t
 
             # Run the OP in C and time it
             t0 = time.time()
             [cFunction() for i in range(self.n_calls)]
             t1 = time.time()
-            print "c", t1 - t0
+            c_t = t1 - t0
+            print "c", c_t, "speed up python", py_t / c_t
+
+            # Run the Op in C with openmp
+            if theano.config.openmp:
+                t0 = time.time()
+                [cFunction2() for i in range(self.n_calls)]
+                t1 = time.time()
+                c_t2 = t1 - t0
+                print "omp c", c_t2, "speed up python", py_t / c_t2, "speed up c", c_t / c_t2
 
 
 class TestImgActsSpeedF32(TestImgActsSpeed):

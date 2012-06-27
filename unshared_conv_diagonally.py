@@ -26,12 +26,17 @@ def not_symbolic(*args):
 class Base(theano.Op):
     def __init__(self,
             module_stride=1,
+            openmp=None
             ):
         self.module_stride = module_stride
+        if openmp is None:
+            openmp = theano.config.openmp
+        self.openmp = openmp
 
     def _attributes(self):
         return (
                 self.module_stride,
+            self.openmp
                 )
 
     def __eq__(self, other):
@@ -42,10 +47,16 @@ class Base(theano.Op):
         return hash((type(self), self._attributes()))
 
     def __str__(self):
-        return '%s{module_stride=%i}' % (
+        return '%s{module_stride=%i,openmp=%d}' % (
                 self.__class__.__name__,
                 self.module_stride,
+                self.openmp
                 )
+
+    def c_compile_args(self):
+        if self.openmp:
+            return ['-fopenmp']
+        return []
 
 
 class FilterActs(Base):
@@ -402,6 +413,7 @@ class ImgActs(Base):
                 
         for m in xrange(fmodules):
             for hR in xrange(hrows):
+                img_r_offset = m*self.module_stride + hR*frows
                 for hC in xrange(hcols):
                     rc_filters = filters[m, :, :, :, :]
                     # rc_filters is fpm x fcolors x frows x fcols
@@ -409,7 +421,6 @@ class ImgActs(Base):
                     rc_hidacts = hidacts[:, m, :, hR, hC]
                     # rc_hidacts is icount x fpm 
                     
-                    img_r_offset = m*self.module_stride + hR*frows
                     img_c_offset = m*self.module_stride + hC*fcols
                                         
                     images[:,:,
@@ -430,7 +441,10 @@ class ImgActs(Base):
         return blas.ldflags()
 
     def c_compile_args(self):
-        return blas.ldflags(libs=False, flags=True)
+        ret = blas.ldflags(libs=False, flags=True)
+        if self.openmp:
+            ret += ['-fopenmp']
+        return ret
 
     def c_lib_dirs(self):
         return blas.ldflags(libs=False, libs_dir=True)
@@ -697,16 +711,17 @@ class ImgActs(Base):
                                 (dtype_%(filters)s*)PyArray_DATA(%(filters)s);
             dtype_%(hidacts)s* output_ptr = 
                                 (dtype_%(output)s*)PyArray_DATA(%(output)s);
-            
-            for(int m=0; m < fmodules; m++){
-            
-                hidacts_ptr += m * hidacts_fmodule_stride;
-                filters_ptr += m * filters_fmodule_stride;
-             
-            
-                for(int hR=0; hR < hrows; hR++){
-                
-                    hidacts_ptr += hR * hidacts_hrows_stride;
+
+//We swap the loop on hrows and fmodules as we can't parallelize on
+//fmodules as this create multiple write to the same adress by
+//multiple threads.
+#pragma omp parallel for schedule(static) firstprivate(hidacts_ptr, filters_ptr, output_ptr)
+            for(int hR=0; hR < hrows; hR++){
+                hidacts_ptr += hR * hidacts_hrows_stride;
+
+                for(int m=0; m < fmodules; m++){
+                    hidacts_ptr += m * hidacts_fmodule_stride;
+                    filters_ptr += m * filters_fmodule_stride;
                     int img_r_offset = m * module_stride + hR * frows;
                     
                 
@@ -867,18 +882,15 @@ class ImgActs(Base):
                         
                         hidacts_ptr -= hC * hidacts_hcols_stride;
                     }
-                    
-                    hidacts_ptr -= hR * hidacts_hrows_stride;
+                    hidacts_ptr -= m * hidacts_fmodule_stride;
+                    filters_ptr -= m * filters_fmodule_stride;
                 }
-                
-                hidacts_ptr -= m * hidacts_fmodule_stride;
-                filters_ptr -= m * filters_fmodule_stride;
+                hidacts_ptr -= hR * hidacts_hrows_stride;
             }
             
         
         }
-        
-        
+
         """
                
         return sio.getvalue() % locals()
