@@ -341,6 +341,14 @@ class ImgActs(Base):
         if irows != icols:
             raise NotImplementedError("non-square image argument",
                     (irows, icols))
+        if hrows * frows + fmodules - 1 != irows:
+            raise NotImplementedError("Nb rows mismatch between filters," +
+                                      "and hidacts",
+                                      (hrows * frows + fmodules - 1, irows))
+        if hcols * fcols + fmodules - 1 != icols:
+            raise NotImplementedError("Nb columns mismatch between filters," +
+                                      "and hidacts",
+                                      (hcols * fcols + fmodules - 1, icols))
 
         images = numpy.zeros(
                 (icount, icolors, irows, icols),
@@ -495,6 +503,14 @@ class ImgActs(Base):
             if ( filters_per_module_ != filters_per_module ){
                 PyErr_SetString(PyExc_ValueError,
                                 "inconsistent number of filters by modules");
+                %(fail)s;
+            }
+            
+            if ( hrows * frows + fmodules - 1 != irows || 
+                 hcols * fcols + fmodules - 1 != icols){
+                 
+                PyErr_SetString(PyExc_ValueError,
+                                "shape mismatch between filters and hidacts");
                 %(fail)s;
             }
             
