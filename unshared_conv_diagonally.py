@@ -238,6 +238,23 @@ class WeightActs(Base):
                     filters[m, :, :, :, :] += rc_filters.reshape(
                             (filters_per_module, fcolors, frows, fcols))
         ostor[0][0] = filters
+        
+    def c_support_code(self):
+        return blas.blas_header_text()
+
+    def c_libraries(self):
+        return blas.ldflags()
+
+    def c_compile_args(self):
+        return blas.ldflags(libs=False, flags=True)
+
+    def c_lib_dirs(self):
+        return blas.ldflags(libs=False, libs_dir=True)
+
+    def c_header_dirs(self):
+        return blas.ldflags(libs=False, include_dir=True)
+    
+    
 
     def grad(self, inputs, goutputs):
         images, hidacts, frows, fcols = inputs
@@ -342,12 +359,12 @@ class ImgActs(Base):
             raise NotImplementedError("non-square image argument",
                     (irows, icols))
         if hrows * frows + fmodules - 1 != irows:
-            raise NotImplementedError("Nb rows mismatch between filters," +
-                                      "and hidacts",
+            raise NotImplementedError("hrows * frows + fmodules - 1 should" +
+                                      "be equal to irows",
                                       (hrows * frows + fmodules - 1, irows))
         if hcols * fcols + fmodules - 1 != icols:
-            raise NotImplementedError("Nb columns mismatch between filters," +
-                                      "and hidacts",
+            raise NotImplementedError("hcols * fcols + fmodules - 1 should" +
+                                      "be equal to icols",
                                       (hcols * fcols + fmodules - 1, icols))
 
         images = numpy.zeros(
@@ -426,10 +443,12 @@ class ImgActs(Base):
         
         if (%(hidacts)s->nd != 5){
             PyErr_SetString(PyExc_ValueError, "hidacts not a 5d tensor");
+            %(fail)s;
         }
         
         if (%(filters)s->nd != 5){
             PyErr_SetString(PyExc_ValueError, "filters not a 5d tensor");
+            %(fail)s;
         }
         
         if ((%(hidacts)s->descr->type_num != PyArray_DOUBLE) && 
@@ -446,7 +465,7 @@ class ImgActs(Base):
             %(fail)s;
         }
         
-        if (%(filters)s->descr->type_num != %(filters)s->descr->type_num){
+        if (%(filters)s->descr->type_num != %(hidacts)s->descr->type_num){
             PyErr_SetString(PyExc_TypeError,
                             "filters and hidacts should have the same type");
             %(fail)s;
@@ -476,43 +495,50 @@ class ImgActs(Base):
             
             // Validate the shape of the input tensors
             
-            if ( hrows != hcols ){
+            if (hrows != hcols){
                 PyErr_SetString(PyExc_ValueError, 
                                 "non-square hidacts argument");
                 %(fail)s;
             }
             
-            if ( frows != fcols ){
+            if (frows != fcols){
                 PyErr_SetString(PyExc_ValueError, 
                                 "non-square filter shape");
                 %(fail)s;
             }
             
-            if ( irows != icols ){
+            if (irows != icols){
                 PyErr_SetString(PyExc_ValueError, 
                                 "non-square image argument");
                 %(fail)s;
             }
             
-            if ( fmodules_ != fmodules ){
+            if (fmodules_ != fmodules){
                 PyErr_SetString(PyExc_ValueError,
                                 "inconsistent number of filter modules");
                 %(fail)s;
             }
             
-            if ( filters_per_module_ != filters_per_module ){
+            if (filters_per_module_ != filters_per_module){
                 PyErr_SetString(PyExc_ValueError,
                                 "inconsistent number of filters by modules");
                 %(fail)s;
             }
             
-            if ( hrows * frows + fmodules - 1 != irows || 
-                 hcols * fcols + fmodules - 1 != icols){
-                 
-                PyErr_SetString(PyExc_ValueError,
-                                "shape mismatch between filters and hidacts");
+            if (hrows * frows + fmodules - 1 != irows){
+                PyErr_SetString(
+                      PyExc_ValueError,
+                      "hrows * frows + fmodules - 1 should be equal to irows");
                 %(fail)s;
             }
+            
+            if (hcols * fcols + fmodules - 1 != icols){
+                PyErr_SetString(
+                    PyExc_ValueError,
+                    "hcols * fcols + fmodules - 1 should be equal to icols");
+                %(fail)s;
+            }
+            
             
                     
             // Ensure output array is of the proper format
@@ -569,7 +595,7 @@ class ImgActs(Base):
             
             npy_intp hidacts_count_stride = PyArray_STRIDE(%(hidacts)s, 0) /
                                             PyArray_ITEMSIZE(%(hidacts)s);
-            npy_intp hidacts_fmodules_stride = PyArray_STRIDE(%(hidacts)s, 1) /
+            npy_intp hidacts_fmodule_stride = PyArray_STRIDE(%(hidacts)s, 1) /
                                                PyArray_ITEMSIZE(%(hidacts)s);
             npy_intp hidacts_filter_stride = PyArray_STRIDE(%(hidacts)s, 2) /
                                              PyArray_ITEMSIZE(%(hidacts)s);
@@ -636,28 +662,28 @@ class ImgActs(Base):
                 
             // Compute the output     
             
-            dtype_%(hidacts)s* next_hidacts_element = 
+            dtype_%(hidacts)s* hidacts_ptr = 
                                 (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
-            dtype_%(filters)s* next_filters_element = 
+            dtype_%(filters)s* filters_ptr = 
                                 (dtype_%(filters)s*)PyArray_DATA(%(filters)s);
-            dtype_%(hidacts)s* next_output_element = 
+            dtype_%(hidacts)s* output_ptr = 
                                 (dtype_%(output)s*)PyArray_DATA(%(output)s);
             
             for(int m=0; m < fmodules; m++){
             
-                next_hidacts_element += m * hidacts_fmodules_stride;
-                next_filters_element += m * filters_fmodule_stride;
+                hidacts_ptr += m * hidacts_fmodule_stride;
+                filters_ptr += m * filters_fmodule_stride;
              
             
                 for(int hR=0; hR < hrows; hR++){
                 
-                    next_hidacts_element += hR * hidacts_hrows_stride;
+                    hidacts_ptr += hR * hidacts_hrows_stride;
                     int img_r_offset = m * module_stride + hR * frows;
                     
                 
                     for(int hC=0; hC < hcols; hC++){
                     
-                        next_hidacts_element += hC * hidacts_hcols_stride;
+                        hidacts_ptr += hC * hidacts_hcols_stride;
                         int img_c_offset = m * module_stride + hC * frows;
                         
                         if(useBlas){
@@ -665,99 +691,159 @@ class ImgActs(Base):
                             // Use BLAS' gemv function to speed up 
                             // the calculation of the dot products.
                         
-                            for(int icountIndex=0; icountIndex < hcount; icountIndex++){
+                            for(int icountIndex=0; icountIndex < hcount; 
+                                icountIndex++){
                                                             
-                                next_hidacts_element += icountIndex * hidacts_count_stride;
-                                next_output_element += icountIndex * output_count_stride;
+                                hidacts_ptr += icountIndex * 
+                                               hidacts_count_stride;
+                                output_ptr += icountIndex * 
+                                              output_count_stride;
                                 
-                                %(gemv)s(&noTrans, &nbColsFilters, &nbRowsFilters, &alpha, next_filters_element, &LDA,
-                                        next_hidacts_element, &hidacts_inc, &beta, dotp, &inc_output);
+                                %(gemv)s(&noTrans, &nbColsFilters,
+                                         &nbRowsFilters, &alpha,
+                                         filters_ptr, &LDA,
+                                         hidacts_ptr, &hidacts_inc,
+                                         &beta, dotp, &inc_output);
                                         
                                 // Copy dotp content to output array
-                                for(int fcolorsIndex=0; fcolorsIndex < fcolors; fcolorsIndex++){
-                                    next_output_element += fcolorsIndex * output_color_stride;
+                                for(int fcolorsIndex=0; fcolorsIndex < 
+                                    fcolors; fcolorsIndex++){
                                     
-                                    for(int frowsIndex=0; frowsIndex < frows; frowsIndex++){
-                                        next_output_element += (img_r_offset + frowsIndex) * output_frows_stride;
+                                    output_ptr += fcolorsIndex * 
+                                                  output_color_stride;
                                     
-                                        for(int fcolsIndex=0; fcolsIndex < fcols; fcolsIndex++){
-                                            next_output_element += (img_c_offset+fcolsIndex) * output_fcols_stride;
+                                    for(int frowsIndex=0; frowsIndex < frows; 
+                                        frowsIndex++){
+                                    
+                                        output_ptr += 
+                                                (img_r_offset + frowsIndex) * 
+                                                output_frows_stride;
+                                    
+                                        for(int fcolsIndex=0; 
+                                            fcolsIndex < fcols; fcolsIndex++){
                                         
-                                            next_output_element[0] += dotp[fcolorsIndex * frows * fcols +
-                                                                                frowsIndex * fcols +
-                                                                                fcolsIndex];
+                                            output_ptr += 
+                                                (img_c_offset+fcolsIndex) * 
+                                                output_fcols_stride;
+                                        
+                                            output_ptr[0] += 
+                                                dotp[fcolorsIndex * frows * 
+                                                fcols + frowsIndex * fcols +
+                                                fcolsIndex];
                                             
-                                            next_output_element -= (img_c_offset+fcolsIndex) * output_fcols_stride;
+                                            output_ptr -= 
+                                                (img_c_offset+fcolsIndex) * 
+                                                output_fcols_stride;
                                         }
                                         
-                                        next_output_element -= (img_r_offset + frowsIndex) * output_frows_stride;
+                                        output_ptr -= 
+                                                (img_r_offset + frowsIndex) * 
+                                                output_frows_stride;
                                     }
                                     
-                                    next_output_element -= fcolorsIndex * output_color_stride;
+                                    output_ptr -= fcolorsIndex * 
+                                                  output_color_stride;
                                 }
                                 
-                                next_hidacts_element -= icountIndex * hidacts_count_stride;
-                                next_output_element -= icountIndex * output_count_stride;
+                                hidacts_ptr -= icountIndex * 
+                                               hidacts_count_stride;
+                                output_ptr -= icountIndex * 
+                                              output_count_stride;
                             }
                         
                         }else{
                             // Use a slower non-BLAS version
                         
-                            for(int icountIndex=0; icountIndex < hcount; icountIndex++){
+                            for(int icountIndex=0; icountIndex < hcount;
+                                icountIndex++){
                             
-                                next_hidacts_element += icountIndex * hidacts_count_stride;
-                                next_output_element += icountIndex * output_count_stride;
+                                hidacts_ptr += icountIndex * 
+                                               hidacts_count_stride;
+                                output_ptr += icountIndex * 
+                                              output_count_stride;
                             
                                 
-                                for(int fcolorsIndex=0; fcolorsIndex < fcolors; fcolorsIndex++){
+                                for(int fcolorsIndex=0; 
+                                    fcolorsIndex < fcolors; fcolorsIndex++){
                                 
-                                    next_filters_element += fcolorsIndex * filters_fcolor_stride;
-                                    next_output_element += fcolorsIndex * output_color_stride;
+                                    filters_ptr += fcolorsIndex *
+                                                   filters_fcolor_stride;
+                                    output_ptr += fcolorsIndex * 
+                                                  output_color_stride;
                                     
                                 
-                                    for(int frowsIndex=0; frowsIndex < frows; frowsIndex++){
+                                    for(int frowsIndex=0; frowsIndex < frows;
+                                        frowsIndex++){
                                     
-                                        next_filters_element += frowsIndex * filters_frows_stride;
-                                        next_output_element += (img_r_offset + frowsIndex) * output_frows_stride;
+                                        filters_ptr += 
+                                                frowsIndex * 
+                                                filters_frows_stride;      
+                                        output_ptr += 
+                                                (img_r_offset + frowsIndex) * 
+                                                output_frows_stride;
                                     
-                                        for(int fcolsIndex=0; fcolsIndex < fcols; fcolsIndex++){
+                                        for(int fcolsIndex=0; 
+                                            fcolsIndex < fcols; fcolsIndex++){
                                         
-                                            next_filters_element += fcolsIndex * filters_fcols_stride;
-                                            next_output_element += (img_c_offset+fcolsIndex) * output_fcols_stride;
+                                            filters_ptr += 
+                                                    fcolsIndex * 
+                                                    filters_fcols_stride;
+                                                    
+                                            output_ptr += 
+                                                    (img_c_offset +
+                                                     fcolsIndex) * 
+                                                    output_fcols_stride;
                                             
-                                            for(int filter=0; filter < filters_per_module_; filter++){
+                                            for(int filter=0; 
+                                                filter < filters_per_module_; 
+                                                filter++){
                                                                                     
-                                                next_output_element[0] += (next_hidacts_element + filter * hidacts_filter_stride)[0] * 
-                                                                        (next_filters_element + filter * filters_filter_stride)[0];
+                                                output_ptr[0] += 
+                                                    *(hidacts_ptr + filter * 
+                                                      hidacts_filter_stride) *
+                                                    *(filters_ptr + filter *
+                                                      filters_filter_stride);
                                                                                 
                                             }
                                             
-                                            next_filters_element -= fcolsIndex * filters_fcols_stride;
-                                            next_output_element -= (img_c_offset+fcolsIndex) * output_fcols_stride;
+                                            filters_ptr -= 
+                                                    fcolsIndex * 
+                                                    filters_fcols_stride;
+                                            output_ptr -= 
+                                                    (img_c_offset + 
+                                                     fcolsIndex) * 
+                                                    output_fcols_stride;
                                         }
                                         
-                                        next_filters_element -= frowsIndex * filters_frows_stride;
-                                        next_output_element -= (img_r_offset + frowsIndex) * output_frows_stride;
+                                        filters_ptr -= frowsIndex * 
+                                                       filters_frows_stride;
+                                        output_ptr -= (img_r_offset + 
+                                                       frowsIndex) * 
+                                                      output_frows_stride;
                                     }
                                     
-                                    next_filters_element -= fcolorsIndex * filters_fcolor_stride;
-                                    next_output_element -= fcolorsIndex * output_color_stride;
+                                    filters_ptr -= fcolorsIndex * 
+                                                   filters_fcolor_stride;
+                                    output_ptr -= fcolorsIndex * 
+                                                  output_color_stride;
                                 }
                                 
-                                next_hidacts_element -= icountIndex * hidacts_count_stride;
-                                next_output_element -= icountIndex * output_count_stride;
+                                hidacts_ptr -= icountIndex * 
+                                               hidacts_count_stride;
+                                output_ptr -= icountIndex * 
+                                              output_count_stride;
                             }
                         
                         }
                         
-                        next_hidacts_element -= hC * hidacts_hcols_stride;
+                        hidacts_ptr -= hC * hidacts_hcols_stride;
                     }
                     
-                    next_hidacts_element -= hR * hidacts_hrows_stride;
+                    hidacts_ptr -= hR * hidacts_hrows_stride;
                 }
                 
-                next_hidacts_element -= m * hidacts_fmodules_stride;
-                next_filters_element -= m * filters_fmodule_stride;
+                hidacts_ptr -= m * hidacts_fmodule_stride;
+                filters_ptr -= m * filters_fmodule_stride;
             }
             
         

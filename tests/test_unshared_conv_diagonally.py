@@ -292,7 +292,7 @@ class TestImgActs(unittest.TestCase):
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
     #                              hrows, hcols)
-    hshape_list = [(10, 11, 32, 8, 8)]
+    hshape_list = [(10, 11, 32, 9, 9)]
 
     
     module_stride = 1

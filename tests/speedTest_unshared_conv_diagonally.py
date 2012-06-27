@@ -17,7 +17,91 @@ def rand(shp, dtype):
     return numpy.random.rand(*shp).astype(dtype)
 
 
-class TestImgActsSpeedF64(unittest.TestCase):
+class TestWeightActsSpeed(unittest.TestCase):
+
+    # Global test variables (may be extended to include more tests)
+
+    #Each item in ishape_list : (icount, icolors, irows, icols)
+    ishape_list = [(10, 1, 98, 98)]
+
+    #Each item in fshapes_list = (fmodules, filters_per_module, 
+    #                             fcolors, frows, fcols)
+    fshape_list = [(11, 32, 1, 11, 11)]
+
+    # Each item in hshapes_list = (hcount, fmodules, filter_per_module, 
+    #                              hrows, hcols)
+    hshape_list = [(10, 11, 32, 8, 8)]
+
+    module_stride = 1
+    dtype = 'float64'
+    nbTests = len(ishape_list)
+    n_calls = 50
+
+    # Utility functions
+    def ishape(self, i):
+        return self.ishape_list[i]
+
+    def irows(self, i):
+        return self.ishape_list[i][2]
+
+    def icols(self, i):
+        return self.ishape_list[i][3]
+
+    def fshape(self, i):
+        return self.fshape_list[i]
+        
+    def frows(self, i):
+        return self.fshape_list[i][3]
+
+    def fcols(self, i):
+        return self.fshape_list[i][4]
+
+    def hshape(self, i):
+        return self.hshape_list[i]
+
+    def setUp(self):
+        self.op = WeightActs(module_stride=self.module_stride)
+        
+        self.s_images_list = [theano.shared(rand(ishape, self.dtype))
+                              for ishape in self.ishape_list]
+        self.s_hidacts_list = [theano.shared(rand(hshape, self.dtype))
+                               for hshape in self.hshape_list]
+
+
+    # Test Cases
+    def testMainOpSpeed(self):
+#        mode = theano.Mode(linker=theano.gof.vm.VM_Linker(
+#            allow_gc=False,
+#            use_cloop=True))
+        for i in range(self.nbTests):
+
+            # Generate theano functions to run the op in python and in C
+            output = self.op(self.s_images_list[i], self.s_hidacts_list[i],
+                             self.frows(i), self.fcols(i))
+
+            pyFunction = theano.function([], output,
+                                         mode=theano.Mode(linker='py'))
+
+            cFunction = theano.function([], output,
+                                        mode=theano.Mode(linker='c'))
+
+            # Run the OP in python
+            t0 = time.time()
+            [pyFunction() for i in range(self.n_calls)]
+            t1 = time.time()
+            print "py", t1 - t0,
+
+            # Run the OP in C and time it
+            t0 = time.time()
+            [cFunction() for i in range(self.n_calls)]
+            t1 = time.time()
+            print "c", t1 - t0
+
+class TestWeightActsSpeedF32(TestWeightActsSpeed):
+    dtype = 'float32'
+    
+
+class TestImgActsSpeed(unittest.TestCase):
 
     # Global test variables (may be extended to include more tests)
 
@@ -84,12 +168,12 @@ class TestImgActsSpeedF64(unittest.TestCase):
             t1 = time.time()
             print "py", t1 - t0,
 
-            # Run the OP in C and (TODO)time it
+            # Run the OP in C and time it
             t0 = time.time()
             [cFunction() for i in range(self.n_calls)]
             t1 = time.time()
             print "c", t1 - t0
 
 
-class TestImgActsSpeedF32(TestImgActsSpeedF64):
+class TestImgActsSpeedF32(TestImgActsSpeed):
     dtype = 'float32'
