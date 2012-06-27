@@ -290,18 +290,22 @@ class TestImgActs(unittest.TestCase):
 
     # Global test variables (may be extended to include more tests)
 
-    #Each item in ishape_list : (icount, icolors, irows, icols)
-    ishape_list = [(10, 1, 98, 98)]
+    ishape_list = [(1, 2, 6, 6), (1, 2, 6, 6),
+                   (2, 3, 24, 24), (2, 3, 20, 20),
+                   (2, 3, 49, 49), (20, 1, 98, 98)]
 
     #Each item in fshapes_list = (fmodules, filters_per_module,
     #                             fcolors, frows, fcols)
-    fshape_list = [(11, 32, 1, 11, 11)]
+    fshape_list = [(1, 1, 2, 3, 3), (1, 1, 2, 3, 3),
+                   (1, 1, 3, 6, 6), (3, 2, 3, 6, 6),
+                   (6, 32, 3, 11, 11), (11, 32, 1, 11, 11)]
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
     #                              hrows, hcols)
-    hshape_list = [(10, 11, 32, 8, 8)]
+    hshape_list = [(1, 1, 1, 2, 2), (1, 1, 1, 2, 2),
+                   (2, 1, 1, 4, 4), (2, 3, 2, 3, 3),
+                   (2, 6, 32, 4, 4), (20, 11, 32, 8, 8)]
 
-    
     module_stride = 1
     dtype = 'float64'
     nbTests = len(ishape_list)
@@ -363,7 +367,7 @@ class TestImgActs(unittest.TestCase):
             assert_linear(f, self.s_hidacts_list[i])
 
     def test_grad(self):
-        for i in range(self.nbTests):
+        for i in range(self.nbTests - 2):
 
             def op2(imgs, hids):
                 return self.op(imgs, hids, self.irows(i), self.icols(i))
