@@ -194,6 +194,8 @@ class TestWeightActs(unittest.TestCase):
     #                              hrows, hcols)
     #hshape_list = [(1, 11, 32, 8, 8),(2, 1, 1, 6, 6 )]
     hshape_list = [(10, 11, 32, 8, 8)]
+    
+
 
     module_stride = 1
     dtype = 'float64'
