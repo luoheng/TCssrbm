@@ -492,13 +492,6 @@ class WeightActs(Base):
                                             PyArray_ITEMSIZE(%(output)s);
                           
                           
-            // Check if BLAS' gemv can be used to speed up the computations
-            
-            bool useBlas = PyArray_ISCONTIGUOUS(%(hidacts)s) &&
-                           PyArray_ISCONTIGUOUS(%(images)s);
-                     
-            
-            
             // Allocate memory for the array in which the content of images
             // will be copied so that it will be C Contiguous for BLAS' gemv
             
@@ -558,106 +551,74 @@ class WeightActs(Base):
                         hidacts_ptr += hC * hidacts_hcols_stride;
                         int img_c_offset = m * module_stride + hC * frows;
                         
-                        if(useBlas){
                         
-                            // Use BLAS' gemv function to speed up 
-                            // the calculation of the dot products.
-                            
-                            /****************************/
-                            /****       TODO       ******/
-                            /****************************/
-                            
-                            
-
-                                
-                                // Copy the relevant data from images into
-                                // the img_C array
-                                for(int icountIndex=0; icountIndex < icount; 
-                                    icountIndex++){
+                        // Copy the relevant data from images into
+                        // the img_C array
+                        
+                        for(int icountIndex=0; icountIndex < icount; 
+                            icountIndex++){
                                     
-                                    images_ptr += icountIndex * 
-                                                  images_count_stride;
+                            images_ptr += icountIndex *  images_count_stride;
                                 
-                                    for(int icolorsIndex=0; icolorsIndex < 
-                                        icolors; icolorsIndex++){
+                            for(int icolorsIndex=0; icolorsIndex < icolors;
+                                icolorsIndex++){
                                         
-                                        images_ptr += icolorsIndex * 
-                                                    images_color_stride;
+                                images_ptr += icolorsIndex * 
+                                              images_color_stride;
                                         
-                                        for(int frowsIndex=0; 
-                                            frowsIndex < frows; 
-                                            frowsIndex++){
+                                for(int frowsIndex=0; frowsIndex < frows; 
+                                    frowsIndex++){
                                         
-                                            images_ptr += 
-                                                    (img_r_offset + 
-                                                     frowsIndex) * 
-                                                    images_irows_stride;
+                                    images_ptr += (img_r_offset + 
+                                                   frowsIndex) * 
+                                                  images_irows_stride;
                                         
-                                            for(int fcolsIndex=0; 
-                                                fcolsIndex < fcols; 
-                                                fcolsIndex++){
+                                    for(int fcolsIndex=0; fcolsIndex < fcols;
+                                        fcolsIndex++){
                                             
-                                                images_ptr += 
-                                                    (img_c_offset + 
-                                                     fcolsIndex) * 
-                                                    images_icols_stride;
+                                        images_ptr += (img_c_offset + 
+                                                       fcolsIndex) * 
+                                                      images_icols_stride;
                                                                                             
-                                                img_C_ptr[icountIndex * 
-                                                          icolors * 
-                                                          frows * fcols +
-                                                          icolorsIndex * 
-                                                          frows * fcols + 
-                                                          frowsIndex * fcols +
-                                                          fcolsIndex] = images_ptr[0];
+                                        img_C_ptr[icountIndex * icolors * 
+                                                  frows * fcols +
+                                                  icolorsIndex * frows * 
+                                                  fcols + frowsIndex * fcols +
+                                                  fcolsIndex] = images_ptr[0];
                                                                                                
-                                                images_ptr -= 
-                                                    (img_c_offset + 
-                                                     fcolsIndex) * 
-                                                    images_icols_stride;
-                                            }
-                                            
-                                            images_ptr -= 
-                                                    (img_r_offset + 
-                                                     frowsIndex) * 
-                                                    images_irows_stride;
-                                        }
-                                        
-                                        images_ptr -= icolorsIndex * 
-                                                    images_color_stride;
+                                        images_ptr -= (img_c_offset + 
+                                                       fcolsIndex) * 
+                                                      images_icols_stride;
                                     }
-                                    
-                                    images_ptr -= icountIndex * 
-                                                  images_count_stride;
+                                            
+                                images_ptr -= (img_r_offset + frowsIndex) * 
+                                              images_irows_stride;
                                 }
-                                
-                            for(int fpm=0; fpm < filters_per_module; fpm++){                           
-                            
-                                hidacts_ptr += fpm * hidacts_filter_stride;
-                                output_ptr += fpm * output_filter_stride;    
-                                
-                                //std::cout<<output_ptr[0] << std::endl;
-                                //raise(SIGINT);
-                                
-                                // Perform the dot product                                
-                                %(gemv)s(&noTrans, &nbColsImages,
-                                         &nbRowsImages, &alpha,
-                                         img_C_ptr, &LDA,
-                                         hidacts_ptr, &hidacts_inc,
-                                         &beta, output_ptr, &inc_output);
-                                         
-                                hidacts_ptr -= fpm * hidacts_filter_stride;
-                                output_ptr -= fpm * output_filter_stride;
-                            
+                                        
+                            images_ptr -= icolorsIndex * images_color_stride;
                             }
-                            
-                        }else{
+                                    
+                        images_ptr -= icountIndex * images_count_stride;
+                        }
                         
-                            // Use a slow BLAS-free version
-                            
-                            /****************************/
-                            /****       TODO       ******/
-                            /****************************/ 
                         
+                        // Perform and sum the various dot products
+                        
+                        for(int fpm=0; fpm < filters_per_module; fpm++){                           
+                            
+                            hidacts_ptr += fpm * hidacts_filter_stride;
+                            output_ptr += fpm * output_filter_stride;    
+                                
+                            // Perform the dot product                                
+                            %(gemv)s(&noTrans, &nbColsImages,
+                                     &nbRowsImages, &alpha,
+                                     img_C_ptr, &LDA,
+                                     hidacts_ptr, &hidacts_inc,
+                                     &beta, output_ptr, &inc_output);
+                                         
+                            hidacts_ptr -= fpm * hidacts_filter_stride;
+                            output_ptr -= fpm * output_filter_stride;
+                            
                         }
                         
                         hidacts_ptr -= hC * hidacts_hcols_stride;
@@ -669,23 +630,9 @@ class WeightActs(Base):
                 hidacts_ptr -= m * hidacts_module_stride;
                 output_ptr -= m * output_module_stride;
             }
-        
-            /*
-                        rc_images = images[:,:,
-                                img_r_offset:img_r_offset + frows,
-                                img_c_offset:img_c_offset + fcols]
-                        # rc_images is icount x icolors x irows x icols 
-
-                        rc_hidacts = hidacts[:, m, :, hR, hC]
-                        # rc_hidacts is count x fpm 
-
-                        rc_filters = numpy.dot(
-                                rc_hidacts.T,
-                                rc_images.reshape(icount, -1))
-                        filters[m, :, :, :, :] += rc_filters.reshape(
-                                (filters_per_module, fcolors, frows, fcols))
-        
-            */
+            
+            // Free the img_C array
+            if (NULL != img_C) Py_XDECREF(img_C);
         
         }
         
@@ -1286,6 +1233,8 @@ class ImgActs(Base):
             }
             
         
+            // Free the dotPResult array
+            if (NULL != dotPResult) Py_XDECREF(dotPResult);
         }
 
         """
