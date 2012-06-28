@@ -41,19 +41,22 @@ class TestFilterActs(unittest.TestCase):
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
-    ishape_list = [(1, 2, 6, 6), (1, 2, 6, 6),
+    ishape_list = [(1, 1, 4, 4), (2, 1, 4, 4),
+                   (1, 2, 4, 4), (1, 1, 4, 4),
                    (2, 3, 24, 24), (2, 3, 20, 20),
                    (2, 3, 49, 49), (20, 1, 98, 98)]
 
     #Each item in fshapes_list = (fmodules, filters_per_module,
     #                             fcolors, frows, fcols)
-    fshape_list = [(1, 1, 2, 3, 3), (1, 1, 2, 3, 3),
+    fshape_list = [(1, 1, 1, 2, 2), (1, 1, 1, 2, 2),
+                   (1, 1, 2, 2, 2), (1, 4, 1, 2, 2),
                    (1, 1, 3, 6, 6), (3, 2, 3, 6, 6),
                    (5, 32, 3, 11, 11), (11, 32, 1, 11, 11)]
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
     #                              hrows, hcols)
-    hshape_list = [(1, 1, 1, 2, 2), (1, 1, 1, 2, 2),
+    hshape_list = [(1, 1, 1, 2, 2), (2, 1, 1, 2, 2),
+                   (1, 1, 1, 2, 2), (1, 1, 4, 2, 2),
                    (2, 1, 1, 4, 4), (2, 3, 2, 3, 3),
                    (2, 5, 32, 4, 4), (20, 11, 32, 8, 8)]
 
@@ -87,7 +90,7 @@ class TestFilterActs(unittest.TestCase):
     # Test cases
     def test_type(self):
         for i in range(self.nbTests):
-
+            print i, self.ishape_list[i], self.fshape_list[i]
             out = self.op(self.s_images_list[i], self.s_filters_list[i])
             assert out.dtype == self.dtype
             assert out.ndim == 5
@@ -100,6 +103,7 @@ class TestFilterActs(unittest.TestCase):
 
     def test_linearity_images(self):
         for i in range(self.nbTests):
+            print i, self.ishape_list[i], self.fshape_list[i]
             assert_linear(
                     lambda imgs: self.op(imgs, self.s_filters_list[i]),
                     self.s_images_list[i],
@@ -122,6 +126,7 @@ class TestFilterActs(unittest.TestCase):
 
     def test_grad_left(self):
         for i in range(self.nbTests - 2):
+            print i, self.ishape_list[i], self.fshape_list[i]
 
             # test only the left so that the right can be a shared variable,
             # (for tests on the GPU)
@@ -146,7 +151,7 @@ class TestFilterActs(unittest.TestCase):
 
             try:
                 verify_grad(right_op, [self.s_filters_list[i].get_value()],
-                            mode=self.mode, eps=3e-4)#rel_tol=0.0006)
+                            mode=self.mode, eps=3e-4)
             except verify_grad.E_grad, e:
                 raise
                 print e.num_grad.gf

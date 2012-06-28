@@ -86,6 +86,24 @@ class FilterActs(Base):
             self.frows
                 )
 
+    def c_support_code(self):
+        return blas.blas_header_text()
+
+    def c_libraries(self):
+        return blas.ldflags()
+
+    def c_compile_args(self):
+        ret = blas.ldflags(libs=False, flags=True)
+        if self.openmp:
+            ret += ['-fopenmp']
+        return ret
+
+    def c_lib_dirs(self):
+        return blas.ldflags(libs=False, libs_dir=True)
+
+    def c_header_dirs(self):
+        return blas.ldflags(libs=False, include_dir=True)
+
     @classmethod
     def infer_shape_without_instance(cls, ishape, fshape):
         icount, icolors, irows, icols = ishape
@@ -188,9 +206,6 @@ class FilterActs(Base):
             print 'FilterActs shapes: hidacts', hidacts.shape
 
     def c_code(self, node, node_name, input_names, output_names, sub):
-        if self.fcols is None and self.openmp is False:
-            raise NotImplementedError(
-                "This will be slower with not too small input then the python version with optimized blas")
         # Extract input values
         images, filters = input_names
         #filters, hidacts, irows, icols = input_names
@@ -211,6 +226,13 @@ class FilterActs(Base):
         frows = self.frows
         if frows is None:
             frows = "%(filters)s->dimensions[3]" % locals()
+
+        if node.outputs[0].dtype == 'float32':
+            gemm = "sgemm_"
+        elif node.outputs[0].dtype == 'float64':
+            gemm = "dgemm_"
+        else:
+            raise Exception()
 
         print >> sio, """
         // Validate the number of dimensions and the
@@ -361,9 +383,121 @@ class FilterActs(Base):
 
             const int out_strd_i = %(output)s->strides[0] / PyArray_ITEMSIZE(%(output)s);
             const int out_strd_j = %(output)s->strides[2] / PyArray_ITEMSIZE(%(output)s);
-#pragma omp parallel for schedule(static)
+
+
+            // Check if BLAS' gemm can be used to speed up the computations
+            // TODO: for filters, we only need the 3 last dimensions to be contiguous
+            //       so we can remove the getcontiguous for many strided cases
+            // TODO: for images, we probably already support all input contiguous cases as we copy it.
+            bool useBlas = PyArray_ISCONTIGUOUS(c_images) &&
+                                PyArray_ISCONTIGUOUS(c_filters) &&
+                                icolors == 1 &&
+                                (PyArray_TYPE(%(images)s) ==
+                                 PyArray_TYPE(%(filters)s)) &&
+                                (PyArray_TYPE(%(images)s) ==
+                                 PyArray_TYPE(%(output)s));
+
+            if(useBlas){
+#pragma parallel  default(none) shared(c_filters, c_images, outputDims, V1)
+                char noTrans = 'N';
+                char Trans = 'T';
+                const dtype_%(output)s alpha = 1.0f;
+                const dtype_%(output)s beta = 0.0f;
+                const int LDA = fcolors * frows * fcols;
+                const int LDB = fcolors * frows * fcols;
+                const int LDC = filters_per_module;
+                const int K = fcolors * frows * fcols;
+
+
+                //Allocate temporary storare for output of gemm
+                npy_intp gemm_out_dim[2];
+                gemm_out_dim[0] = icount;
+                gemm_out_dim[1] = filters_per_module;
+                PyArrayObject* gemm_out = (PyArrayObject*)PyArray_EMPTY(2, gemm_out_dim,
+                                                      %(output)s->descr->type_num,
+                                                      0);
+                if(!gemm_out) {
+                    PyErr_SetString(PyExc_MemoryError,
+                            "FilterActs: failed to alloc memory for gemm_out");
+                    %(fail)s
+                }
+
+                //Allocate temporary storare for the images passed to gemm
+                //This is needed as the memory order is not right.
+                npy_intp gemm_img_dim[2];
+                gemm_img_dim[0] = icount;
+                gemm_img_dim[1] = fcolors * frows * fcols;
+                PyArrayObject* gemm_img = (PyArrayObject*)PyArray_EMPTY(2, gemm_img_dim,
+                                                      %(images)s->descr->type_num,
+                                                      1);
+                if(!gemm_img) {
+                    PyErr_SetString(PyExc_MemoryError,
+                            "FilterActs: failed to alloc memory for gemm_img");
+                    %(fail)s
+                }
+
+#pragma omp for schedule(static)
+                for(int m=0; m<fmodules; m++){
+                    dtype_%(filters)s* rc_filters = (dtype_%(filters)s*)(
+                                                     c_filters->data +
+                                                     m * c_filters->strides[0]);
+                    for(int hR=0; hR<outputDims[3]; hR++){ // loop hrows time
+                        int img_r_offset = m * module_stride + hR * frows;
+
+                        for(int hC=0; hC<outputDims[4]; hC++){ //loop hcols time
+                            int img_c_offset = m * module_stride + hC * fcols;
+
+                            dtype_%(images)s* rc_images = (dtype_%(images)s*)(
+                                                     c_images->data +
+                                                     img_r_offset * c_images->strides[2] +
+                                                     img_c_offset * c_images->strides[3]);
+                            //copy the images into gemm_img
+                            dtype_%(images)s* gemm_img_ptr = (dtype_%(images)s*) gemm_img->data;
+
+//       raise(SIGINT);
+                            for(int ic=0; ic<icount; ic++){
+                                for(int i=0; i<fcolors; i++){
+                                    for(int j=0; j<frows; j++){
+                                        for(int k=0; k<fcols; k++, gemm_img_ptr++){
+                                            gemm_img_ptr[0] = rc_images[ic*img_strd_0 + i*img_strd_1 +
+                                                                        j*img_strd_2 + k*img_strd_3];
+                                        }
+                                    }
+                                }
+                            }
+
+                            //call gemm, it expect input as f order, so we need to swap inputs.
+                            %(gemm)s(&Trans, &noTrans,
+                                     &filters_per_module, &icount, &K,
+                                     &alpha, rc_filters, &LDB, (dtype_%(images)s*)gemm_img->data, &LDA,
+                                     &beta, (dtype_%(output)s*) PyArray_DATA(gemm_out), &LDC);
+
+                            //copy the output into out_ptr
+                            dtype_%(output)s* out_ptr = (dtype_%(output)s*)(
+                                                     %(output)s->data +
+                                                     //i * %(output)s->strides[0] +
+                                                     m * %(output)s->strides[1] +
+                                                     //j * %(output)s->strides[2] +
+                                                     hR * %(output)s->strides[3] +
+                                                     hC * %(output)s->strides[4]);
+                            void* gemm_out_ptr = PyArray_DATA(gemm_out);
+                            for(int i=0; i<icount;
+                                i++, out_ptr += out_strd_i){
+                                for(int j=0; j<filters_per_module; j++){
+                                    out_ptr[j * out_strd_j] = *((dtype_%(output)s*)(gemm_out_ptr + i * gemm_out->strides[0] + j * gemm_out->strides[1]));
+
+                                }
+                            }
+                        }
+                    }
+                }
+            Py_DECREF(gemm_out);
+            Py_DECREF(gemm_img);
+        }else{
+
+#pragma omp parallel for schedule(static) default(none) shared(c_filters, c_images, outputDims, %(output)s)
             for(int m=0; m<fmodules; m++){
-                        dtype_%(filters)s* rc_filters = (dtype_%(filters)s*)(
+                dtype_%(filters)s* rc_filters = (dtype_%(filters)s*)(
                                                  c_filters->data +
                                                  m * c_filters->strides[0]);
                 for(int hR=0; hR<outputDims[3]; hR++){ // loop hrows time
@@ -426,6 +560,7 @@ class FilterActs(Base):
                 }
             }
 
+            }//if useBlas
             Py_XDECREF(c_images);
             Py_XDECREF(c_filters);
         }
