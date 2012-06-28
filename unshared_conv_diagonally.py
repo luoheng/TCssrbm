@@ -265,7 +265,7 @@ class WeightActs(Base):
     def c_header_dirs(self):
         return blas.ldflags(libs=False, include_dir=True)
     
-    def c_code_disabled(self, node, node_name, input_names, output_names, sub):
+    def c_code(self, node, node_name, input_names, output_names, sub):
         
         # Extract input values
         images, hidacts, frows, fcols = input_names
@@ -568,10 +568,7 @@ class WeightActs(Base):
                             /****************************/
                             
                             
-                            for(int fpm=0; fpm < filters_per_module; fpm++){                           
-                            
-                                hidacts_ptr += fpm * hidacts_filter_stride;
-                                output_ptr += fpm * output_filter_stride;
+
                                 
                                 // Copy the relevant data from images into
                                 // the img_C array
@@ -633,7 +630,10 @@ class WeightActs(Base):
                                                   images_count_stride;
                                 }
                                 
-                                
+                            for(int fpm=0; fpm < filters_per_module; fpm++){                           
+                            
+                                hidacts_ptr += fpm * hidacts_filter_stride;
+                                output_ptr += fpm * output_filter_stride;    
                                 
                                 //std::cout<<output_ptr[0] << std::endl;
                                 //raise(SIGINT);
