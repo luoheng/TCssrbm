@@ -108,12 +108,6 @@ class FilterActs(Base):
         hshape = self.infer_shape(node, (images.shape, filters.shape))[0]
         _, _, _, hrows, hcols = hshape
         hidacts = numpy.zeros(hshape, dtype=images.dtype)
-        if (icols // fcols) * fcols + fmodules -1 > icols:
-            raise Exception(self.__class__.__name__ +
-                            ": (icols // fcols) * fcols + fmodules <= icols must be True")
-        if (irows // frows) * frows + fmodules -1 > irows:
-            raise Exception(self.__class__.__name__ +
-                            ": (irows // frows) * frows + fmodules <= irows must be True")
         for m in xrange(fmodules):
             for hR in xrange(hrows):
                 img_r_offset = m * self.module_stride + hR * frows
@@ -130,29 +124,6 @@ class FilterActs(Base):
                         rc_filters.reshape(filters_per_module, -1).T
                         )
                     hidacts[:, m, :, hR, hC] = rc_hidacts
-        if False:
-            # I didn't run all the tests as this is too long, but it seam good.
-            hidacts2 = numpy.zeros(hshape, dtype=images.dtype)
-            for m in xrange(fmodules):
-                for hR in xrange(hrows):
-                    img_r_offset = m * self.module_stride + hR * frows
-                    for hC in xrange(hcols):
-                        img_c_offset = m * self.module_stride + hC * fcols
-                        rc_images = images[:, :,
-                                           img_r_offset:img_r_offset + frows,
-                                           img_c_offset:img_c_offset + fcols]
-                        rc_filters = filters[m]
-                        # rc_images are count x fcolors x frows x fcols
-                        # rc_filters are fpm x fcolors x frows x fcols
-                        A = rc_images.reshape(icount, -1)
-                        B = rc_filters.reshape(filters_per_module, -1).T
-                        for i in range(A.shape[0]):
-                            for j in range(B.shape[1]):
-                                s = 0
-                                for k in range(A.shape[1]):
-                                    s += A.item(i, k) * B.item(k, j)
-                                hidacts2[i, m, j, hR, hC] = s
-            assert numpy.allclose(hidacts, hidacts2)
         ostor[0][0] = hidacts
         #print 'exiting FilterActs.perform'
         if 0:
@@ -283,7 +254,433 @@ class WeightActs(Base):
     def c_header_dirs(self):
         return blas.ldflags(libs=False, include_dir=True)
     
-    
+    def c_code_disabled(self, node, node_name, input_names, output_names, sub):
+        
+        # Extract input values
+        images, hidacts, frows, fcols = input_names
+        #filters, hidacts, irows, icols = input_names
+        
+        # Determine which BLAS function to use
+        conv_type = scalar.upcast(node.inputs[0].type.dtype, 
+                                  node.inputs[1].type.dtype) 
+        if conv_type == 'float32':
+            conv_type = "float"
+            gemv = "sgemv_"
+        elif conv_type == 'float64':
+            conv_type = "double"
+            gemv = "dgemv_"
+        else:
+            raise Exception()
+        
+        # Extract output values
+        output = output_names[0]
+        
+        # Assign self.module_stride to a local variable else 
+        # the %(module_stride)s fails
+        module_stride = self.module_stride
+        
+        #Generate C code
+        fail = sub['fail']
+        sio = StringIO.StringIO()
+
+        print >> sio, """
+        
+        // Validate the shape and the data type of the input tensors
+        
+        if (%(hidacts)s->nd != 5){
+            PyErr_SetString(PyExc_ValueError, "hidacts not a 5d tensor");
+            %(fail)s;
+        }
+        
+        if (%(images)s->nd != 4){
+            PyErr_SetString(PyExc_ValueError, "images not a 4d tensor");
+            %(fail)s;
+        }
+        
+        if ((%(hidacts)s->descr->type_num != PyArray_DOUBLE) && 
+            (%(hidacts)s->descr->type_num != PyArray_FLOAT)){
+            PyErr_SetString(PyExc_TypeError, 
+                            "hidacts type should be float32 or float64");
+            %(fail)s;
+        }
+        
+        if ((%(images)s->descr->type_num != PyArray_DOUBLE) && 
+            (%(images)s->descr->type_num != PyArray_FLOAT)){
+            PyErr_SetString(PyExc_TypeError, 
+                            "images type should be float32 or float64");
+            %(fail)s;
+        }
+        
+        if (%(images)s->descr->type_num != %(hidacts)s->descr->type_num){
+            PyErr_SetString(PyExc_TypeError,
+                            "images and hidacts should have the same type");
+            %(fail)s;
+        }
+        
+        {   // New scope level to avoid cross-initialization
+        
+            // Extract input variables
+            
+            int hcount = %(hidacts)s->dimensions[0];
+            int fmodules = %(hidacts)s->dimensions[1];
+            int filters_per_module = %(hidacts)s->dimensions[2];
+            int hrows = %(hidacts)s->dimensions[3];
+            int hcols = %(hidacts)s->dimensions[4];
+                       
+            int icount = %(images)s->dimensions[0];
+            int icolors = %(images)s->dimensions[1];
+            int irows = %(images)s->dimensions[2];
+            int icols = %(images)s->dimensions[3];
+            
+            int frows = ((dtype_%(frows)s *) (%(frows)s->data))[0];
+            int fcols = ((dtype_%(fcols)s *) (%(fcols)s->data))[0];
+            
+            int module_stride = %(module_stride)s;
+            
+            
+            // Validate the shape of the input tensors
+            
+            if ( hrows != hcols ){
+                PyErr_SetString(PyExc_ValueError, 
+                                "non-square hidacts argument");
+                %(fail)s;
+            }
+            
+            if ( frows != fcols ){
+                PyErr_SetString(PyExc_ValueError, 
+                                "non-square filter shape");
+                %(fail)s;
+            }
+            
+            if ( irows != icols ){
+                PyErr_SetString(PyExc_ValueError, 
+                                "non-square image argument");
+                %(fail)s;
+            }
+            
+            if ( hcount != icount ){
+                PyErr_SetString(PyExc_ValueError,
+                                "inconsistent batch size");
+                %(fail)s;
+            }
+                       
+            if (hrows * frows + fmodules - 1 != irows){
+                PyErr_SetString(
+                      PyExc_ValueError,
+                      "hrows * frows + fmodules - 1 should be equal to irows");
+                %(fail)s;
+            }
+            
+            if (hcols * fcols + fmodules - 1 != icols){
+                PyErr_SetString(
+                    PyExc_ValueError,
+                    "hcols * fcols + fmodules - 1 should be equal to icols");
+                %(fail)s;
+            }
+            
+                                
+            // Ensure output array is of the proper format
+            
+            if (NULL == %(output)s || 
+               (%(output)s->dimensions[0] != fmodules) || 
+               (%(output)s->dimensions[1] != filters_per_module) || 
+               (%(output)s->dimensions[2] != icolors) || 
+               (%(output)s->dimensions[3] != frows) || 
+               (%(output)s->dimensions[4] != fcols) ||
+               (!PyArray_ISBEHAVED(%(output)s)) || 
+               ((%(output)s->descr->type_num != PyArray_DOUBLE) && 
+                (%(output)s->descr->type_num != PyArray_FLOAT)))
+            {
+                // The output array is of an invalid format.
+                
+                if (NULL != %(output)s) Py_XDECREF(%(output)s);
+                
+                npy_intp outputDims[5];
+                outputDims[0] = fmodules;
+                outputDims[1] = filters_per_module;
+                outputDims[2] = icolors;
+                outputDims[3] = frows;
+                outputDims[4] = fcols;
+            
+                %(output)s = (PyArrayObject*)PyArray_ZEROS(5, outputDims, 
+                                             %(images)s->descr->type_num, 0);
+                if(!%(output)s) {
+                    PyErr_SetString(PyExc_MemoryError, 
+                                    "failed to alloc memory for output");
+                    %(fail)s
+                }
+                
+   
+            }else{
+            
+                // The output array is of the proper format. 
+                // Its content must be initialized to zeros.
+                
+                dtype_%(output)s* data_ptr = 
+                                (dtype_%(output)s*)PyArray_DATA(%(output)s);
+                                
+                npy_intp s0 = PyArray_STRIDE(%(output)s, 0) /
+                                            PyArray_ITEMSIZE(%(output)s);
+                npy_intp s1 = PyArray_STRIDE(%(output)s, 1) /
+                                             PyArray_ITEMSIZE(%(output)s);
+                npy_intp s2 = PyArray_STRIDE(%(output)s, 2) /
+                                             PyArray_ITEMSIZE(%(output)s);
+                npy_intp s3 = PyArray_STRIDE(%(output)s, 3) / 
+                                            PyArray_ITEMSIZE(%(output)s);
+                npy_intp s4 = PyArray_STRIDE(%(output)s, 4) /
+                                            PyArray_ITEMSIZE(%(output)s);
+                                
+                for(int module = 0; module < fmodules; module++){
+                    for(int fpm = 0; fpm < fmodules; fpm++){
+                        for(int color = 0; color < icolors; color++){
+                            for(int row = 0; row < irows; row++){
+                                for(int col = 0; col < icols; col++){
+                            
+                                    data_ptr[module * s0 + fpm * s1 +
+                                             color * s2 + row * s3 + 
+                                             row * s4] = 0.0f;
+                                }
+                            }
+                        }
+                    }
+                }  
+            }       
+            
+            
+            // Extract the arrays' strides
+            
+            npy_intp hidacts_count_stride = PyArray_STRIDE(%(hidacts)s, 0) /
+                                            PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_module_stride = PyArray_STRIDE(%(hidacts)s, 1) /
+                                               PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_filter_stride = PyArray_STRIDE(%(hidacts)s, 2) /
+                                             PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_hrows_stride = PyArray_STRIDE(%(hidacts)s, 3) / 
+                                            PyArray_ITEMSIZE(%(hidacts)s);
+            npy_intp hidacts_hcols_stride = PyArray_STRIDE(%(hidacts)s, 4) /
+                                            PyArray_ITEMSIZE(%(hidacts)s);
+                      
+            npy_intp images_count_stride = PyArray_STRIDE(%(images)s, 0) /
+                                           PyArray_ITEMSIZE(%(images)s);
+            npy_intp images_color_stride = PyArray_STRIDE(%(images)s, 1) /
+                                           PyArray_ITEMSIZE(%(images)s);
+            npy_intp images_irows_stride = PyArray_STRIDE(%(images)s, 2) /
+                                           PyArray_ITEMSIZE(%(images)s);
+            npy_intp images_icols_stride = PyArray_STRIDE(%(images)s, 3) /
+                                           PyArray_ITEMSIZE(%(images)s);
+                                           
+            npy_intp output_module_stride = PyArray_STRIDE(%(output)s, 0) /
+                                              PyArray_ITEMSIZE(%(output)s);
+            npy_intp output_filter_stride = PyArray_STRIDE(%(output)s, 1) /
+                                             PyArray_ITEMSIZE(%(output)s);
+            npy_intp output_color_stride = PyArray_STRIDE(%(output)s, 2) /
+                                             PyArray_ITEMSIZE(%(output)s);
+            npy_intp output_frows_stride = PyArray_STRIDE(%(output)s, 3) /
+                                            PyArray_ITEMSIZE(%(output)s);
+            npy_intp output_fcols_stride = PyArray_STRIDE(%(output)s, 4) /
+                                            PyArray_ITEMSIZE(%(output)s);
+                          
+                          
+            // Check if BLAS' gemv can be used to speed up the computations
+            
+            bool useBlas = PyArray_ISCONTIGUOUS(%(hidacts)s) &&
+                           PyArray_ISCONTIGUOUS(%(images)s);
+                     
+            
+            
+            // Allocate memory for the array in which the content of images
+            // will be copied so that it will be C Contiguous for BLAS' gemv
+            
+            npy_intp dotPDims[2];
+            dotPDims[0] = icount;
+            dotPDims[1] = icolors * frows * fcols;
+            
+            PyArrayObject* img_C = 
+                    (PyArrayObject*)PyArray_ZEROS(2, dotPDims,
+                                                  %(output)s->descr->type_num,
+                                                  0);
+            if(!img_C) {
+                PyErr_SetString(PyExc_MemoryError, 
+                                "failed to alloc memory for dotPResult");
+                %(fail)s
+            }
+            dtype_%(output)s* img_C_ptr = (dtype_%(output)s*)(img_C->data);
+                
+          
+        
+            // Allocate variable used to call the BLAS function
+            
+            char noTrans = 'N';
+            %(conv_type)s alpha = 1.0f;
+            %(conv_type)s beta = 1.0f;
+            int nbRowsImages = icount;
+            int nbColsImages = icolors * frows * fcols;
+            int LDA = icolors * frows * fcols;
+            int hidacts_inc = hidacts_count_stride;
+            int inc_output = 1; // because %(output)s is C-contiguous
+                
+                
+            // Compute the output     
+            
+            dtype_%(hidacts)s* hidacts_ptr = 
+                                (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
+            dtype_%(images)s* images_ptr = 
+                                (dtype_%(images)s*)PyArray_DATA(%(images)s);
+            dtype_%(output)s* output_ptr = 
+                                (dtype_%(output)s*)PyArray_DATA(%(output)s);
+        
+            
+            for(int m=0; m < fmodules; m++){
+            
+                hidacts_ptr += m * hidacts_module_stride;
+                output_ptr += m * output_module_stride;
+             
+            
+                for(int hR=0; hR < hrows; hR++){
+                
+                    hidacts_ptr += hR * hidacts_hrows_stride;
+                    int img_r_offset = m * module_stride + hR * frows;
+                    
+                
+                    for(int hC=0; hC < hcols; hC++){
+                    
+                        hidacts_ptr += hC * hidacts_hcols_stride;
+                        int img_c_offset = m * module_stride + hC * frows;
+                        
+                        if(useBlas){
+                        
+                            // Use BLAS' gemv function to speed up 
+                            // the calculation of the dot products.
+                            
+                            /****************************/
+                            /****       TODO       ******/
+                            /****************************/
+                            
+                            
+                            for(int fpm=0; fpm < filters_per_module; fpm++){                           
+                            
+                                hidacts_ptr += fpm * hidacts_filter_stride;
+                                output_ptr += fpm * output_filter_stride;
+                                
+                                // Copy the relevant data from images into
+                                // the img_C array
+                                for(int icountIndex=0; icountIndex < icount; 
+                                    icountIndex++){
+                                    
+                                    images_ptr += icountIndex * 
+                                                  images_count_stride;
+                                
+                                    for(int icolorsIndex=0; icolorsIndex < 
+                                        icolors; icolorsIndex++){
+                                        
+                                        images_ptr += icolorsIndex * 
+                                                    images_color_stride;
+                                        
+                                        for(int frowsIndex=0; 
+                                            frowsIndex < frows; 
+                                            frowsIndex++){
+                                        
+                                            images_ptr += 
+                                                    (img_r_offset + 
+                                                     frowsIndex) * 
+                                                    images_irows_stride;
+                                        
+                                            for(int fcolsIndex=0; 
+                                                fcolsIndex < fcols; 
+                                                fcolsIndex++){
+                                            
+                                                images_ptr += 
+                                                    (img_c_offset + 
+                                                     fcolsIndex) * 
+                                                    images_icols_stride;
+                                                                                            
+                                                img_C_ptr[icountIndex * 
+                                                          icolors * 
+                                                          frows * fcols +
+                                                          icolorsIndex * 
+                                                          frows * fcols + 
+                                                          frowsIndex * fcols +
+                                                          fcolsIndex] = images_ptr[0];
+                                                                                               
+                                                images_ptr -= 
+                                                    (img_c_offset + 
+                                                     fcolsIndex) * 
+                                                    images_icols_stride;
+                                            }
+                                            
+                                            images_ptr -= 
+                                                    (img_r_offset + 
+                                                     frowsIndex) * 
+                                                    images_irows_stride;
+                                        }
+                                        
+                                        images_ptr -= icolorsIndex * 
+                                                    images_color_stride;
+                                    }
+                                    
+                                    images_ptr -= icountIndex * 
+                                                  images_count_stride;
+                                }
+                                
+                                
+                                
+                                //std::cout<<output_ptr[0] << std::endl;
+                                //raise(SIGINT);
+                                
+                                // Perform the dot product                                
+                                %(gemv)s(&noTrans, &nbColsImages,
+                                         &nbRowsImages, &alpha,
+                                         img_C_ptr, &LDA,
+                                         hidacts_ptr, &hidacts_inc,
+                                         &beta, output_ptr, &inc_output);
+                                         
+                                hidacts_ptr -= fpm * hidacts_filter_stride;
+                                output_ptr -= fpm * output_filter_stride;
+                            
+                            }
+                            
+                        }else{
+                        
+                            // Use a slow BLAS-free version
+                            
+                            /****************************/
+                            /****       TODO       ******/
+                            /****************************/ 
+                        
+                        }
+                        
+                        hidacts_ptr -= hC * hidacts_hcols_stride;
+                    }
+                    
+                    hidacts_ptr -= hR * hidacts_hrows_stride;
+                }
+                
+                hidacts_ptr -= m * hidacts_module_stride;
+                output_ptr -= m * output_module_stride;
+            }
+        
+            /*
+                        rc_images = images[:,:,
+                                img_r_offset:img_r_offset + frows,
+                                img_c_offset:img_c_offset + fcols]
+                        # rc_images is icount x icolors x irows x icols 
+
+                        rc_hidacts = hidacts[:, m, :, hR, hC]
+                        # rc_hidacts is count x fpm 
+
+                        rc_filters = numpy.dot(
+                                rc_hidacts.T,
+                                rc_images.reshape(icount, -1))
+                        filters[m, :, :, :, :] += rc_filters.reshape(
+                                (filters_per_module, fcolors, frows, fcols))
+        
+            */
+        
+        }
+        
+        """
+               
+        return sio.getvalue() % locals()    
 
     def grad(self, inputs, goutputs):
         images, hidacts, frows, fcols = inputs
