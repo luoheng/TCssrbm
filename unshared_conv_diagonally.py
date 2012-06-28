@@ -92,6 +92,9 @@ class FilterActs(Base):
     def c_libraries(self):
         return blas.ldflags()
 
+    def c_headers(self):
+        return ["omp.h"]
+
     def c_compile_args(self):
         ret = blas.ldflags(libs=False, flags=True)
         if self.openmp:
@@ -221,6 +224,7 @@ class FilterActs(Base):
         fail = sub['fail']
         sio = StringIO.StringIO()
         fcols = self.fcols
+        openmp = int(self.openmp)
         if fcols is None:
             fcols = "%(filters)s->dimensions[4]" % locals()
         frows = self.frows
@@ -398,7 +402,59 @@ class FilterActs(Base):
                                  PyArray_TYPE(%(output)s));
 
             if(useBlas){
-#pragma parallel  default(none) shared(c_filters, c_images, outputDims, V1)
+                int nb_threads = 1;
+                if(%(openmp)s)
+                    nb_threads = omp_get_max_threads();
+
+                //Allocate temporary storare for output of gemm
+                npy_intp gemm_out_dim[2];
+                gemm_out_dim[0] = icount;
+                gemm_out_dim[1] = filters_per_module;
+
+                PyArrayObject* gemm_outs[nb_threads];
+                for(int i = 0; i< nb_threads; i++){
+                    gemm_outs[i] = (PyArrayObject*)PyArray_EMPTY(2,
+                                                  gemm_out_dim,
+                                                  %(output)s->descr->type_num,
+                                                  0);
+                    if(!gemm_outs[i]) {
+                        PyErr_SetString(PyExc_MemoryError,
+                            "FilterActs: failed to alloc memory for gemm_out");
+                        for(int j = 0; j < i; j++)
+                            Py_DECREF(gemm_outs[j]);
+
+                        %(fail)s
+                    }
+                }
+
+                //Allocate temporary storare for the images passed to gemm
+                //This is needed as the memory order is not right.
+                npy_intp gemm_img_dim[2];
+                gemm_img_dim[0] = icount;
+                gemm_img_dim[1] = fcolors * frows * fcols;
+                PyArrayObject* gemm_imgs[nb_threads];
+                for(int i = 0; i< nb_threads; i++){
+                    gemm_imgs[i] = (PyArrayObject*)PyArray_EMPTY(2,
+                                                   gemm_img_dim,
+                                                   %(images)s->descr->type_num,
+                                                   1);
+                    if(!gemm_imgs[i]) {
+                        PyErr_SetString(PyExc_MemoryError,
+                            "FilterActs: failed to alloc memory for gemm_img");
+                        for(int j = 0; j < nb_threads; j++)
+                            Py_DECREF(gemm_outs[j]);
+                        for(int j = 0; j < i; j++)
+                            Py_DECREF(gemm_imgs[j]);
+                        %(fail)s
+                    }
+                }
+
+#pragma omp parallel default(none) shared(c_filters, c_images, outputDims,\
+                                          %(output)s, %(images)s,\
+                                          gemm_outs, gemm_imgs) if(%(openmp)s)
+{
+                PyArrayObject* gemm_out = gemm_outs[omp_get_thread_num()];
+                PyArrayObject* gemm_img = gemm_imgs[omp_get_thread_num()];
                 char noTrans = 'N';
                 char Trans = 'T';
                 const dtype_%(output)s alpha = 1.0f;
@@ -408,33 +464,6 @@ class FilterActs(Base):
                 const int LDC = filters_per_module;
                 const int K = fcolors * frows * fcols;
 
-
-                //Allocate temporary storare for output of gemm
-                npy_intp gemm_out_dim[2];
-                gemm_out_dim[0] = icount;
-                gemm_out_dim[1] = filters_per_module;
-                PyArrayObject* gemm_out = (PyArrayObject*)PyArray_EMPTY(2, gemm_out_dim,
-                                                      %(output)s->descr->type_num,
-                                                      0);
-                if(!gemm_out) {
-                    PyErr_SetString(PyExc_MemoryError,
-                            "FilterActs: failed to alloc memory for gemm_out");
-                    %(fail)s
-                }
-
-                //Allocate temporary storare for the images passed to gemm
-                //This is needed as the memory order is not right.
-                npy_intp gemm_img_dim[2];
-                gemm_img_dim[0] = icount;
-                gemm_img_dim[1] = fcolors * frows * fcols;
-                PyArrayObject* gemm_img = (PyArrayObject*)PyArray_EMPTY(2, gemm_img_dim,
-                                                      %(images)s->descr->type_num,
-                                                      1);
-                if(!gemm_img) {
-                    PyErr_SetString(PyExc_MemoryError,
-                            "FilterActs: failed to alloc memory for gemm_img");
-                    %(fail)s
-                }
 
 #pragma omp for schedule(static)
                 for(int m=0; m<fmodules; m++){
@@ -491,8 +520,11 @@ class FilterActs(Base):
                         }
                     }
                 }
-            Py_DECREF(gemm_out);
-            Py_DECREF(gemm_img);
+        }//parallel
+            for(int i = 0; i< nb_threads; i++){
+                Py_DECREF(gemm_outs[i]);
+                Py_DECREF(gemm_imgs[i]);
+            }
         }else{
 
 #pragma omp parallel for schedule(static) default(none) shared(c_filters, c_images, outputDims, %(output)s)
