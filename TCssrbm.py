@@ -23,9 +23,9 @@ from Brodatz import Brodatz_op
 
 #import scipy.io
 import os
-_temp_data_path_ = '.'#'/Tmp/luoheng'
+_temp_data_path_ = '.'#'/Tmp/carriepl'
 
-if 1:
+if 0:
     print 'WARNING: using SLOW rng'
     RandomStreams = tensor.shared_randomstreams.RandomStreams
 else:
@@ -519,9 +519,11 @@ class Trainer(object): # updates of this object implement training
                 learn_rates = [lrdict[p] for p in rbm.params()],
                 conf=conf,
                 annealing_coef=sharedX(1.0, 'annealing_coef'),
+
                 conv_h_means = sharedX(numpy.zeros(rbm.out_conv_hs_shape[1:])+0.5,'conv_h_means'),
                 cpnv_h       = sharedX(numpy.zeros(rbm.out_conv_hs_shape), 'conv_h'),
                 recons_error = sharedX(error,'reconstruction_error'),                
+
                 )
 
     def __init__(self, **kwargs):
@@ -552,6 +554,7 @@ class Trainer(object): # updates of this object implement training
 
         #sparsity_cost = 0
         #self.sparsity_cost = sparsity_cost
+
         # SML updates PCD
         add_updates(
                 self.rbm.cd_updates(
@@ -588,8 +591,8 @@ class Trainer(object): # updates of this object implement training
         #print broadcastable_value
         #reconstructions= self.rbm.gibbs_step_for_v(self.visible_batch, self.sampler.s_rng)
 	#recons_error   = tensor.sum((self.visible_batch-reconstructions)**2)
-	recons_error = 0.0
-        ups[self.recons_error] = recons_error
+	#recons_error = 0.0
+        #ups[self.recons_error] = recons_error
 	#return {self.particles: new_particles}
         ups[self.sampler.particles] = tensor.clip(new_particles,
                 conf['particles_min'],
@@ -706,7 +709,7 @@ class Trainer(object): # updates of this object implement training
         #print self.rbm.h_tiled_conv_mask.get_value(borrow=True)[0,32,0:3,0:3]
 	#print_minmax('global_h_means', self.global_h_means.get_value())
         print 'lr annealing coef:', self.annealing_coef.get_value()
-	print 'reconstruction error:', self.recons_error.get_value()
+	#print 'reconstruction error:', self.recons_error.get_value()
 
 def main_inpaint(filename, algo='Gibbs', rng=777888, scale_separately=False, sampling_for_v=False):
     rbm = cPickle.load(open(filename))
@@ -858,7 +861,7 @@ def main0(rval_doc):
     conf = rval_doc['conf']
     batchsize = conf['batchsize']
 
-    batch_idx = tensor.iscalar()
+    batch_idx = tensor.lscalar()
     batch_range = batch_idx * conf['batchsize'] + numpy.arange(conf['batchsize'])
     
     
@@ -931,7 +934,7 @@ def main0(rval_doc):
             #mode='DEBUG_MODE',
 	    updates=training_updates	    
 	    )  #
-
+	    
     print 'training...'
     
     iter = 0

@@ -1,0 +1,4 @@
+Depuis la version initiale, les modifications suivantes ont été apportées : 
+
+- Utilisation du générateur de nombres aléatoires theano.sandbox.rng_mrg.MRG_RandomStreams plutôt que le
+  générateur tensor.shared_randomstreams.RandomStreams. 

@@ -1,0 +1,143 @@
+WARNING: using SLOW rng
+start main_train
+alloc rbm
+init rbm
+v_shape
+(64, 1, 98, 98)
+self.filters_hs_shape
+(11, 32, 1, 11, 11)
+self.out_conv_hs_shape
+(64, 11, 32, 8, 8)
+self.conv_bias_hs_shape
+(11, 32, 8, 8)
+alloc trainer
+init trainer
+start building function
+start trainer.updates
+The output file is available at graph.png
+training...
+iter: 1.0
+filters_hs  -0.0414955 0.0478434
+conv_bias_hs -0.999939 0.999983
+conv_mu 1.0 1.0
+conv_alpha 10.0 10.0
+conv_lambda 0.001 0.001
+v_prec 10.0 10.0
+particles -1.37889 1.48308
+conv_h_means 0.476668 0.523187
+lr annealing coef: 1.0
+iter: 101.0
+filters_hs  -0.0423294 0.0462507
+conv_bias_hs -0.999958 0.999987
+conv_mu 0.999544 1.00033
+conv_alpha 10.0 10.0
+conv_lambda 0.000370535 0.00182205
+v_prec 10.0 10.0008
+particles -1.48644 1.54048
+conv_h_means 0.26697 0.732407
+lr annealing coef: 0.999833
+iter: 201.0
+filters_hs  -0.0425785 0.0453589
+conv_bias_hs -0.999982 1.0
+conv_mu 0.999046 1.00077
+conv_alpha 10.0 10.0
+conv_lambda 0.0 0.00522634
+v_prec 10.0 10.0018
+particles -1.42077 1.35088
+conv_h_means 0.265772 0.732612
+lr annealing coef: 0.999667
+
+ProfileMode.print_summary()
+---------------------------
+
+Time since import 246.015s
+Theano compile time: 0.000s (0.0% since import)
+    Optimization time: 0.000s
+    Linker time: 0.000s
+Theano fct call 234.119s (95.2% since import)
+   Theano Op time 233.842s 95.1%(since import) 99.9%(of fct call)
+   Theano function overhead in ProfileMode 0.277s 0.1%(since import) 0.1%(of fct call)
+209 Theano fct call, 1.120s per call
+Rest of the time since import 11.896s 4.8%
+
+Theano fct summary:
+<% total fct time> <total time> <time per call> <nb call> <fct name>
+    0.0% 0.000s 1.26e-04s 1 None
+    0.0% 0.000s 8.58e-05s 1 None
+    0.0% 0.000s 1.14e-04s 1 None
+    0.0% 0.000s 1.72e-04s 1 None
+    0.0% 0.000s 1.41e-04s 1 None
+    0.0% 0.000s 8.89e-05s 1 None
+    0.0% 0.000s 8.99e-05s 1 None
+   100.0% 234.118s 1.16e+00s 201 None
+    0.0% 0.000s 8.51e-05s 1 None
+
+Single Op-wise summary:
+<% of local_time spent on this kind of Op> <cumulative %> <self seconds> <cumulative seconds> <time per call> [*] <nb_call> <nb_op> <nb_apply> <Op name>
+   28.0%   28.0%  65.585s  65.585s  5.44e-02s    1206  1  6 <class 'unshared_conv_diagonally.FilterActs'>
+   23.7%   51.7%  55.304s  120.889s  6.88e-02s     804  1  4 <class 'unshared_conv_diagonally.WeightActs'>
+   17.9%   69.6%  41.953s  162.842s  3.79e-03s * 11055 28 55 <class 'theano.tensor.elemwise.Elemwise'>
+   15.4%   85.0%  36.026s  198.867s  4.48e-02s     804  4  4 <class 'theano.tensor.raw_random.RandomFunction'>
+   11.9%   96.9%  27.788s  226.656s  6.91e-02s     402  1  2 <class 'unshared_conv_diagonally.ImgActs'>
+    2.3%   99.2%  5.408s  232.064s  3.36e-03s *  1608  1  8 <class 'theano.tensor.elemwise.Sum'>
+    0.8%  100.0%  1.761s  233.825s  8.76e-03s     201  1  1 <class 'pylearn.dataset_ops.protocol.TensorFnDataset'>
+    0.0%  100.0%  0.015s  233.840s  4.14e-06s *  3618  7 18 <class 'theano.tensor.elemwise.DimShuffle'>
+    0.0%  100.0%  0.002s  233.842s  2.02e-06s *  1005  3  5 <class 'theano.tensor.opt.Shape_i'>
+    0.0%  100.0%  0.001s  233.842s  6.60e-05s *     8  1  8 <class 'theano.compile.function_module.DeepCopyOp'>
+    0.0%  100.0%  0.000s  233.842s  1.24e-05s       8  1  8 <class 'theano.tensor.basic.Reshape'>
+   ... (remaining 0 single Op account for 0.00%(0.00s) of the runtime)
+(*) Op is running a c implementation
+
+Op-wise summary:
+<% of local_time spent on this kind of Op> <cumulative %> <self seconds> <cumulative seconds> <time per call> [*]  <nb_call> <nb apply> <Op name>
+   28.0%   28.0%  65.585s  65.585s  5.44e-02s    1206  6 FilterActs{module_stride=1}
+   23.7%   51.7%  55.304s  120.889s  6.88e-02s     804  4 WeightActs{module_stride=1}
+   11.9%   63.6%  27.788s  148.678s  6.91e-02s     402  2 ImgActs{module_stride=1}
+    8.9%   72.5%  20.795s  169.473s  1.03e-01s     201  1 RandomFunction{normal}
+    7.6%   80.1%  17.817s  187.290s  4.43e-02s *   402  2 Elemwise{Composite{[Composite{[Composite{[scalar_sigmoid(add(i0, i1, i2, i3))]}(i0, mul(i1, i2), mul(i3, i4), true_div(i5, i6))]}(i0, i1, i2, i3, i4, mul(i5, i6), i7)]}}[(0, 2)]
+    3.9%   84.0%  9.128s  196.418s  4.54e-02s *   201  1 Elemwise{Composite{[Composite{[Composite{[Composite{[Composite{[Composite{[Cast{float32}(LT(i0, i1))]}(i0, scalar_sigmoid(i1))]}(i0, add(i1, i2, i3, i4))]}(i0, i1, mul(i2, i3), mul(i4, i5), true_div(i6, i7))]}(i0, i1, i2, i3, i4, i5, mul(i6, i7), i8)]}(i0, i1, i2, i3, i4, i5, i6, sqr(i5), i7)]}}[(0, 0)]
+    3.8%   87.8%  8.797s  205.215s  4.38e-02s     201  1 RandomFunction{normal}
+    2.7%   90.5%  6.412s  211.627s  3.19e-02s     201  1 RandomFunction{uniform}
+    2.3%   92.8%  5.408s  217.035s  3.36e-03s *  1608  8 Sum{0}
+    1.9%   94.7%  4.468s  221.504s  2.22e-02s *   201  1 Elemwise{Composite{[Composite{[Composite{[Composite{[mul(i0, add(i1, i2))]}(i0, mul(i1, i2), add(i3, i4))]}(i0, i1, sqrt(i2), i3, true_div(i4, i5))]}(i0, i1, inv(i2), i3, i4, i2)]}}[(0, 0)]
+    1.2%   95.9%  2.781s  224.285s  1.73e-03s *  1608  8 Elemwise{Mul{output_types_preference=transfer_type{1}}}[(0, 1)]
+    1.0%   96.9%  2.313s  226.598s  1.15e-02s *   201  1 Elemwise{Composite{[Composite{[Composite{[Composite{[Composite{[Composite{[clip(mul(i0, i1), i2, i3)]}(add(i0, i1), i2, i3, i4)]}(mul(i0, i1), true_div(i2, i3), i4, i5, i6)]}(i0, sqrt(i1), i2, i3, i4, i5, i6)]}(i0, inv(i1), i2, i1, i3, i4, i5)]}(i0, add(i1, i2), i3, i4, i5, i6)]}}[(0, 2)]
+    0.8%   97.7%  1.761s  228.359s  8.76e-03s     201  1 TensorFnDataset{extract_random_patches,()}
+    0.7%   98.3%  1.535s  229.894s  1.91e-03s *   804  4 Elemwise{sqr,no_inplace}
+    0.6%   98.9%  1.360s  231.254s  6.76e-03s *   201  1 Elemwise{Composite{[Composite{[add(neg(i0), true_div(i1, i2))]}(mul(i0, i1), neg(i2), i3)]}}[(0, 2)]
+    0.6%   99.5%  1.339s  232.593s  6.66e-03s *   201  1 Elemwise{Composite{[add(mul(i0, i1), true_div(i2, i3))]}}[(0, 2)]
+    0.1%   99.6%  0.244s  232.837s  4.05e-04s *   603  3 Elemwise{Composite{[Composite{[Composite{[Composite{[sub(i0, true_div(i1, i2))]}(i0, mul(i1, i2), sqrt(i3))]}(i0, sub(i1, i2), i3, sub(i4, i5))]}(i0, i1, mul(i2, i3, i1), i4, add(i5, i6), sqr(i4))]}}[(0, 0)]
+    0.1%   99.7%  0.194s  233.031s  9.63e-04s *   201  1 Elemwise{Composite{[Switch(LT(i0, i1), i2, i3)]}}[(0, 2)]
+    0.1%   99.7%  0.139s  233.170s  6.92e-04s *   201  1 Elemwise{Composite{[Composite{[Composite{[Composite{[Composite{[clip(sub(i0, i1), i2, i3)]}(i0, true_div(i1, i2), i3, i4)]}(i0, mul(i1, i2), sqrt(i3), i4, i5)]}(i0, sub(i1, i2), i3, sub(i4, i5), i6, i7)]}(i0, i1, mul(i2, i3, i1), i4, add(i5, i6), sqr(i4), i7, i8)]}}[(0, 0)]
+    0.0%   99.8%  0.102s  233.272s  5.09e-04s *   201  1 Elemwise{Sqr{output_types_preference=transfer_type{0}}}[(0, 0)]
+   ... (remaining 29 Op account for   0.24%(0.57s) of the runtime)
+(*) Op is running a c implementation
+
+Apply-wise summary:
+<% of local_time spent at this position> <cumulative %%> <apply time> <cumulative seconds> <time per call> [*] <nb_call> <Apply position> <Apply Op name>
+    8.9%    8.9%  20.795s  20.795s 1.03e-01s    201  17 RandomFunction{normal}(<RandomStateType>, TensorConstant{[64 11 32  8  8]}, TensorConstant{0.0}, TensorConstant{1.0})
+    5.9%   14.8%  13.897s  34.692s 6.91e-02s    201  91 ImgActs{module_stride=1}(filters_hs, Elemwise{Composite{[Composite{[Composite{[Composite{[mul(i0, add(i1, i2))]}(i0, mul(i1, i2), add(i3, i4))]}(i0, i1, sqrt(i2), i3, true_div(i4, i5))]}(i0, i1, inv(i2), i3, i4, i2)]}}[(0, 0)].0, TensorConstant{98}, TensorConstant{98})
+    5.9%   20.8%  13.892s  48.584s 6.91e-02s    201  85 ImgActs{module_stride=1}(conv_lambda, Elemwise{Composite{[Composite{[Composite{[Composite{[Composite{[Composite{[Cast{float32}(LT(i0, i1))]}(i0, scalar_sigmoid(i1))]}(i0, add(i1, i2, i3, i4))]}(i0, i1, mul(i2, i3), mul(i4, i5), true_div(i6, i7))]}(i0, i1, i2, i3, i4, i5, mul(i6, i7), i8)]}(i0, i1, i2, i3, i4, i5, i6, sqr(i5), i7)]}}[(0, 0)].0, TensorConstant{98}, TensorConstant{98})
+    5.9%   26.7%  13.889s  62.473s 6.91e-02s    201  57 WeightActs{module_stride=1}(particles, Elemwise{Composite{[add(mul(i0, i1), true_div(i2, i3))]}}[(0, 2)].0, Shape_i{3}.0, Shape_i{4}.0)
+    5.9%   32.6%  13.858s  76.331s 6.89e-02s    201  68 WeightActs{module_stride=1}(TensorFnDataset{extract_random_patches,()}.0, Elemwise{Composite{[Composite{[add(neg(i0), true_div(i1, i2))]}(mul(i0, i1), neg(i2), i3)]}}[(0, 2)].0, Shape_i{3}.0, Shape_i{4}.0)
+    5.9%   38.5%  13.784s  90.116s 6.86e-02s    201  70 WeightActs{module_stride=1}(Elemwise{sqr,no_inplace}.0, Elemwise{Mul{output_types_preference=transfer_type{1}}}[(0, 1)].0, Shape_i{3}.0, Shape_i{4}.0)
+    5.9%   44.4%  13.772s  103.888s 6.85e-02s    201  61 WeightActs{module_stride=1}(Elemwise{sqr,no_inplace}.0, Elemwise{Mul{output_types_preference=transfer_type{1}}}[(0, 1)].0, Shape_i{3}.0, Shape_i{4}.0)
+    4.7%   49.2%  11.050s  114.937s 5.50e-02s    201  40 FilterActs{module_stride=1}(Elemwise{sqr,no_inplace}.0, conv_lambda)
+    4.7%   53.8%  10.960s  125.898s 5.45e-02s    201  28 FilterActs{module_stride=1}(Elemwise{sqr,no_inplace}.0, conv_lambda)
+    4.7%   58.5%  10.949s  136.847s 5.45e-02s    201  81 FilterActs{module_stride=1}(Elemwise{Sqr{output_types_preference=transfer_type{0}}}[(0, 0)].0, conv_lambda)
+    4.7%   63.2%  10.896s  147.743s 5.42e-02s    201   6 FilterActs{module_stride=1}(particles, filters_hs)
+    4.6%   67.8%  10.870s  158.613s 5.41e-02s    201  35 FilterActs{module_stride=1}(TensorFnDataset{extract_random_patches,()}.0, filters_hs)
+    4.6%   72.5%  10.860s  169.473s 5.40e-02s    201  74 FilterActs{module_stride=1}(Elemwise{Composite{[Switch(LT(i0, i1), i2, i3)]}}[(0, 2)].0, filters_hs)
+    3.9%   76.4%  9.128s  178.601s 4.54e-02s  * 201  82 Elemwise{Composite{[Composite{[Composite{[Composite{[Composite{[Composite{[Cast{float32}(LT(i0, i1))]}(i0, scalar_sigmoid(i1))]}(i0, add(i1, i2, i3, i4))]}(i0, i1, mul(i2, i3), mul(i4, i5), true_div(i6, i7))]}(i0, i1, i2, i3, i4, i5, mul(i6, i7), i8)]}(i0, i1, i2, i3, i4, i5, i6, sqr(i5), i7)]}}[(0, 0)](RandomFunction{uniform}.1, InplaceDimShuffle{x,0,1,2,3}.0, TensorConstant{(1, 1, 1, ..1) of -0.5}, FilterActs{module_stride=1}.0, InplaceDimShuffle{x,0,1,2,3}.0, FilterActs{module_stride=1}.0, TensorConstant{(1, 1, 1, .. 1) of 0.5}, InplaceDimShuffle{x,0,1,2,3}.0)
+    3.8%   80.2%  8.915s  187.517s 4.44e-02s  * 201  46 Elemwise{Composite{[Composite{[Composite{[scalar_sigmoid(add(i0, i1, i2, i3))]}(i0, mul(i1, i2), mul(i3, i4), true_div(i5, i6))]}(i0, i1, i2, i3, i4, mul(i5, i6), i7)]}}[(0, 2)](InplaceDimShuffle{x,0,1,2,3}.0, TensorConstant{(1, 1, 1, ..1) of -0.5}, FilterActs{module_stride=1}.0, InplaceDimShuffle{x,0,1,2,3}.0, FilterActs{module_stride=1}.0, TensorConstant{(1, 1, 1, .. 1) of 0.5}, Elemwise{sqr,no_inplace}.0, InplaceDimShuffle{x,0,1,2,3}.0)
+   ... (remaining 104 Apply instances account for 19.81%(46.33s) of the runtime)
+(*) Op is running a c implementation
+
+Profile of Theano functions memory:
+(This check only the output of each apply node. It don't check the temporary memory used by the op in the apply node.)
+   We skipped 9 theano function(s). Each of them used less then 1024B(theano flags ProfileMode.min_memory_size) of total intermediate memory size
+
+Here are tips to potentially make your code run faster
+(if you think of new ones, suggest them on the mailing list).
+Test them first, as they are not guaranteed to always provide a speedup.
+  - Replace the default random number generator by 'from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams', as this is is faster. It is still experimental, but seems to work correctly.

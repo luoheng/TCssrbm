@@ -1,0 +1,160 @@
+start main_train
+alloc rbm
+init rbm
+v_shape
+(64, 1, 98, 98)
+self.filters_hs_shape
+(11, 32, 1, 11, 11)
+self.out_conv_hs_shape
+(64, 11, 32, 8, 8)
+self.conv_bias_hs_shape
+(11, 32, 8, 8)
+alloc trainer
+init trainer
+start building function
+start trainer.updates
+The output file is available at graph.png
+training...
+iter: 1.0
+filters_hs  -0.0414955 0.0478434
+conv_bias_hs -0.999939 0.999983
+conv_mu 1.0 1.0
+conv_alpha 10.0 10.0
+conv_lambda 0.001 0.001
+v_prec 10.0 10.0
+particles -1.75942 1.44551
+conv_h_means 0.476668 0.523187
+lr annealing coef: 1.0
+iter: 101.0
+filters_hs  -0.0422535 0.0462225
+conv_bias_hs -0.999959 0.999987
+conv_mu 0.999538 1.00031
+conv_alpha 10.0 10.0
+conv_lambda 0.000330674 0.00183948
+v_prec 10.0 10.0008
+particles -1.3866 1.35984
+conv_h_means 0.266979 0.732407
+lr annealing coef: 0.999833345413
+iter: 201.0
+filters_hs  -0.0425089 0.045347
+conv_bias_hs -0.999985 0.999995
+conv_mu 0.999045 1.00074
+conv_alpha 10.0 10.0
+conv_lambda 0.0 0.00526553
+v_prec 10.0 10.0018
+particles -1.36282 1.55478
+conv_h_means 0.265793 0.732603
+lr annealing coef: 0.999666690826
+
+ProfileMode.print_summary()
+---------------------------
+
+Time since import 343.085s
+Theano compile time: 0.000s (0.0% since import)
+    Optimization time: 0.000s
+    Linker time: 0.000s
+Theano fct call 166.490s (48.5% since import)
+   Theano Op time 166.072s 48.4%(since import) 99.7%(of fct call)
+   Theano function overhead in ProfileMode 0.418s 0.1%(since import) 0.3%(of fct call)
+209 Theano fct call, 0.797s per call
+Rest of the time since import 176.596s 51.5%
+
+Theano fct summary:
+<% total fct time> <total time> <time per call> <nb call> <fct name>
+    0.0% 0.000s 3.35e-04s 1 None
+    0.0% 0.000s 3.71e-04s 1 None
+    0.0% 0.000s 3.11e-04s 1 None
+    0.0% 0.000s 2.94e-04s 1 None
+   100.0% 166.487s 8.28e-01s 201 None
+    0.0% 0.000s 3.23e-04s 1 None
+    0.0% 0.000s 2.91e-04s 1 None
+    0.0% 0.000s 2.75e-04s 1 None
+    0.0% 0.000s 3.09e-04s 1 None
+
+Single Op-wise summary:
+<% of local_time spent on this kind of Op> <cumulative %> <self seconds> <cumulative seconds> <time per call> [*] <nb_call> <nb_op> <nb_apply> <Op name>
+   39.6%   39.6%  65.826s  65.826s  5.46e-02s    1206  1  6 <class 'unshared_conv_diagonally.FilterActs'>
+   33.3%   72.9%  55.244s  121.070s  6.87e-02s     804  1  4 <class 'unshared_conv_diagonally.WeightActs'>
+   16.9%   89.8%  28.143s  149.213s  7.00e-02s     402  1  2 <class 'unshared_conv_diagonally.ImgActs'>
+    3.5%   93.3%  5.782s  154.995s  2.39e-03s    2420  1 20 <class 'theano.sandbox.cuda.basic_ops.HostFromGpu'>
+    3.2%   96.6%  5.381s  160.376s  1.57e-03s    3417  1 17 <class 'theano.sandbox.cuda.basic_ops.GpuFromHost'>
+    1.1%   97.7%  1.821s  162.197s  1.28e-04s * 14271 40 71 <class 'theano.sandbox.cuda.basic_ops.GpuElemwise'>
+    1.1%   98.8%  1.805s  164.002s  8.98e-03s     201  1  1 <class 'pylearn.dataset_ops.protocol.TensorFnDataset'>
+    0.5%   99.3%  0.854s  164.856s  6.07e-04s *  1407  1  7 <class 'theano.sandbox.cuda.basic_ops.GpuSum'>
+    0.2%   99.5%  0.320s  165.176s  3.98e-04s *   804  2  4 <class 'theano.sandbox.rng_mrg.GPU_mrg_uniform'>
+    0.1%   99.6%  0.246s  165.422s  7.62e-05s    3224  4 24 <class 'theano.sandbox.cuda.basic_ops.GpuReshape'>
+    0.1%   99.7%  0.217s  165.639s  1.54e-04s *  1407  6  7 <class 'theano.tensor.elemwise.Elemwise'>
+    0.1%   99.9%  0.194s  165.833s  4.83e-04s     402  1  2 <class 'theano.sandbox.cuda.basic_ops.GpuJoin'>
+    0.1%  100.0%  0.162s  165.995s  8.07e-04s *   201  1  1 <class 'theano.tensor.elemwise.Sum'>
+    0.0%  100.0%  0.027s  166.022s  3.42e-05s     804  4  4 <class 'theano.sandbox.cuda.basic_ops.GpuSubtensor'>
+    0.0%  100.0%  0.023s  166.045s  2.27e-05s    1005  1  5 <class 'theano.tensor.opt.MakeVector'>
+    0.0%  100.0%  0.020s  166.066s  6.30e-06s *  3216  6 16 <class 'theano.sandbox.cuda.basic_ops.GpuDimShuffle'>
+    0.0%  100.0%  0.004s  166.070s  1.68e-06s *  2613  5 13 <class 'theano.tensor.opt.Shape_i'>
+    0.0%  100.0%  0.002s  166.072s  3.97e-06s *   402  2  2 <class 'theano.tensor.elemwise.DimShuffle'>
+   ... (remaining 0 single Op account for 0.00%(0.00s) of the runtime)
+(*) Op is running a c implementation
+
+Op-wise summary:
+<% of local_time spent on this kind of Op> <cumulative %> <self seconds> <cumulative seconds> <time per call> [*]  <nb_call> <nb apply> <Op name>
+   39.6%   39.6%  65.826s  65.826s  5.46e-02s    1206  6 FilterActs{module_stride=1}
+   33.3%   72.9%  55.244s  121.070s  6.87e-02s     804  4 WeightActs{module_stride=1}
+   16.9%   89.8%  28.143s  149.213s  7.00e-02s     402  2 ImgActs{module_stride=1}
+    3.5%   93.3%  5.782s  154.995s  2.39e-03s    2420 20 HostFromGpu
+    3.2%   96.6%  5.381s  160.376s  1.57e-03s    3417 17 GpuFromHost
+    1.1%   97.7%  1.805s  162.181s  8.98e-03s     201  1 TensorFnDataset{extract_random_patches,()}
+    0.5%   98.2%  0.854s  163.035s  6.07e-04s *  1407  7 GpuSum{1,0}
+    0.2%   98.4%  0.350s  163.385s  5.81e-04s *   603  3 GpuElemwise{Composite{[Composite{[scalar_sigmoid(add(i0, i1, i2, i3))]}(i0, mul(i1, i2), mul(i3, i4), i5)]}}[(0, 2)]
+    0.1%   98.5%  0.201s  163.586s  3.33e-04s *   603  3 GPU_mrg_uniform{CudaNdarrayType(float32, vector),no_inplace}
+    0.1%   98.6%  0.194s  163.780s  4.83e-04s     402  2 GpuJoin
+    0.1%   98.7%  0.183s  163.963s  9.13e-04s *   201  1 Elemwise{sqr,no_inplace}
+    0.1%   98.8%  0.162s  164.126s  8.07e-04s *   201  1 Sum{0}
+    0.1%   98.9%  0.155s  164.281s  3.86e-04s *   402  2 GpuElemwise{Composite{[true_div(mul(i0, i1), i2)]},no_inplace}
+    0.1%   99.0%  0.137s  164.418s  8.54e-05s *  1608  8 GpuElemwise{Mul{output_types_preference=transfer_type{1}}}[(0, 1)]
+    0.1%   99.1%  0.126s  164.544s  6.26e-04s *   201  1 GpuElemwise{Composite{[Composite{[Composite{[Composite{[mul(i0, add(i1, i2))]}(i0, mul(i1, i2), add(i3, i4))]}(i0, i1, sqrt(i2), i3, true_div(i4, i5))]}(i0, i1, inv(i2), i3, i4, i2)]}}[(0, 0)]
+    0.1%   99.2%  0.119s  164.663s  5.92e-04s *   201  1 GPU_mrg_uniform{CudaNdarrayType(float32, 5D),no_inplace}
+    0.1%   99.2%  0.114s  164.777s  8.12e-05s    1407  7 GpuReshape{2}
+    0.1%   99.3%  0.101s  164.878s  1.25e-04s *   804  4 GpuElemwise{Sqr{output_types_preference=transfer_type{0}}}[(0, 0)]
+    0.1%   99.3%  0.096s  164.973s  7.94e-05s *  1206  6 GpuElemwise{mul,no_inplace}
+    0.1%   99.4%  0.093s  165.067s  4.63e-04s *   201  1 GpuElemwise{Composite{[add(mul(i0, i1), true_div(i2, i3))]}}[(0, 2)]
+   ... (remaining 59 Op account for   0.61%(1.01s) of the runtime)
+(*) Op is running a c implementation
+
+Apply-wise summary:
+<% of local_time spent at this position> <cumulative %%> <apply time> <cumulative seconds> <time per call> [*] <nb_call> <Apply position> <Apply Op name>
+    8.5%    8.5%  14.107s  14.107s 7.02e-02s    201  142 ImgActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0, TensorConstant{98}, TensorConstant{98})
+    8.5%   16.9%  14.036s  28.143s 6.98e-02s    201  155 ImgActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0, TensorConstant{98}, TensorConstant{98})
+    8.3%   25.3%  13.822s  41.965s 6.88e-02s    201  119 WeightActs{module_stride=1}(Elemwise{sqr,no_inplace}.0, HostFromGpu.0, Shape_i{3}.0, Shape_i{4}.0)
+    8.3%   33.6%  13.818s  55.783s 6.87e-02s    201  143 WeightActs{module_stride=1}(TensorFnDataset{extract_random_patches,()}.0, HostFromGpu.0, Shape_i{3}.0, Shape_i{4}.0)
+    8.3%   41.9%  13.805s  69.588s 6.87e-02s    201  154 WeightActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0, Shape_i{3}.0, Shape_i{4}.0)
+    8.3%   50.2%  13.799s  83.387s 6.87e-02s    201  131 WeightActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0, Shape_i{3}.0, Shape_i{4}.0)
+    6.6%   56.8%  11.020s  94.406s 5.48e-02s    201  44 FilterActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0)
+    6.6%   63.5%  11.002s  105.408s 5.47e-02s    201  76 FilterActs{module_stride=1}(Elemwise{sqr,no_inplace}.0, HostFromGpu.0)
+    6.6%   70.1%  10.958s  116.367s 5.45e-02s    201  92 FilterActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0)
+    6.6%   76.7%  10.958s  127.325s 5.45e-02s    201  95 FilterActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0)
+    6.6%   83.3%  10.947s  138.272s 5.45e-02s    201  64 FilterActs{module_stride=1}(TensorFnDataset{extract_random_patches,()}.0, HostFromGpu.0)
+    6.6%   89.8%  10.941s  149.213s 5.44e-02s    201  102 FilterActs{module_stride=1}(HostFromGpu.0, HostFromGpu.0)
+    1.1%   90.9%  1.805s  151.018s 8.98e-03s    201  55 TensorFnDataset{extract_random_patches,()}(Elemwise{Composite{[add(mul(i0, i1), i2)]}}.0)
+    0.4%   91.4%  0.726s  151.744s 3.61e-03s    201  110 HostFromGpu(GpuElemwise{mul,no_inplace}.0)
+    0.4%   91.8%  0.725s  152.469s 3.61e-03s    201  144 HostFromGpu(GpuElemwise{Composite{[add(mul(i0, i1), true_div(i2, i3))]}}[(0, 2)].0)
+   ... (remaining 191 Apply instances account for 8.19%(13.60s) of the runtime)
+(*) Op is running a c implementation
+
+Some info useful for gpu:
+
+    Spent 157.208s(94.663%) in cpu Op, 8.863s(5.337%) in gpu Op and 0.000s(0.000%) transfert Op
+
+    Theano function input that are float64
+    <fct name> <input name> <input type> <str input>
+
+    List of apply that don't have float64 as input but have float64 in outputs
+    (Useful to know if we forgot some cast when using floatX=float32 or gpu code)
+    <Apply> <Apply position> <fct name> <inputs type> <outputs type>
+
+Profile of Theano functions memory:
+(This check only the output of each apply node. It don't check the temporary memory used by the op in the apply node.)
+   We skipped 9 theano function(s). Each of them used less then 1024B(theano flags ProfileMode.min_memory_size) of total intermediate memory size
+
+Here are tips to potentially make your code run faster
+(if you think of new ones, suggest them on the mailing list).
+Test them first, as they are not guaranteed to always provide a speedup.
+  Sorry, no tip for today.
