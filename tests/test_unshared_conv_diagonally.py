@@ -44,7 +44,7 @@ class TestFilterActs(unittest.TestCase):
     ishape_list = [(1, 1, 4, 4), (2, 1, 4, 4),
                    (1, 2, 4, 4), (1, 1, 4, 4),
                    (2, 3, 24, 24), (2, 3, 20, 20),
-                   (2, 3, 49, 49), (20, 1, 98, 98)]
+                   (2, 3, 48, 48), (20, 1, 98, 98)]
 
     #Each item in fshapes_list = (fmodules, filters_per_module,
     #                             fcolors, frows, fcols)
@@ -134,7 +134,7 @@ class TestFilterActs(unittest.TestCase):
                 return self.op(imgs, self.s_filters_list[i])
             try:
                 verify_grad(left_op, [self.s_images_list[i].get_value()],
-                            mode=self.mode, eps=6e-4)
+                            mode=self.mode, eps=9e-4)
             except verify_grad.E_grad, e:
                 raise
                 print e.num_grad.gf
@@ -186,25 +186,24 @@ class TestWeightActs(unittest.TestCase):
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
-    #ishape_list = [(1, 1, 98, 98),(2, 3, 24, 24)]
-    ishape_list = [(1, 2, 6, 6), (1, 2, 6, 6),
+    ishape_list = [(1, 1, 4, 4), (2, 1, 4, 4),
+                   (1, 2, 4, 4), (1, 1, 4, 4),
                    (2, 3, 24, 24), (2, 3, 20, 20),
-                   (2, 3, 49, 49), (20, 1, 98, 98)]
+                   (2, 3, 48, 48), (20, 1, 98, 98)]
 
     #Each item in fshapes_list = (fmodules, filters_per_module,
     #                             fcolors, frows, fcols)
-
-    #fshape_list = [(11, 32, 1, 11, 11),(1, 1, 3, 6, 6)]
-    fshape_list = [(1, 1, 2, 3, 3), (1, 1, 2, 3, 3),
+    fshape_list = [(1, 1, 1, 2, 2), (1, 1, 1, 2, 2),
+                   (1, 1, 2, 2, 2), (1, 4, 1, 2, 2),
                    (1, 1, 3, 6, 6), (3, 2, 3, 6, 6),
-                   (6, 32, 3, 11, 11), (11, 32, 1, 11, 11)]
+                   (5, 32, 3, 11, 11), (11, 32, 1, 11, 11)]
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
     #                              hrows, hcols)
-    #hshape_list = [(1, 11, 32, 8, 8),(2, 1, 1, 6, 6 )]
-    hshape_list = [(1, 1, 1, 2, 2), (1, 1, 1, 2, 2),
+    hshape_list = [(1, 1, 1, 2, 2), (2, 1, 1, 2, 2),
+                   (1, 1, 1, 2, 2), (1, 1, 4, 2, 2),
                    (2, 1, 1, 4, 4), (2, 3, 2, 3, 3),
-                   (2, 6, 32, 4, 4), (20, 11, 32, 8, 8)]
+                   (2, 5, 32, 4, 4), (20, 11, 32, 8, 8)]
     
 
 
@@ -240,6 +239,8 @@ class TestWeightActs(unittest.TestCase):
     # Test cases
     def test_type(self):
         for i in range(self.nbTests):
+            
+            print i, self.ishape_list[i], self.s_hidacts_list[i]
 
             out = self.op(self.s_images_list[i], self.s_hidacts_list[i],
                           self.frows(i), self.fcols(i))
@@ -267,7 +268,7 @@ class TestWeightActs(unittest.TestCase):
             assert_linear(f, self.s_hidacts_list[i])
 
     def test_grad(self):
-        for i in range(self.nbTests):
+        for i in range(self.nbTests - 2):
 
             def op2(imgs, hids):
                 return self.op(imgs, hids, self.frows(i), self.fcols(i))
@@ -303,21 +304,25 @@ class TestImgActs(unittest.TestCase):
 
     # Global test variables (may be extended to include more tests)
 
-    ishape_list = [(1, 2, 6, 6), (1, 2, 6, 6),
+    #Each item in ishape_list : (icount, icolors, irows, icols)
+    ishape_list = [(1, 1, 4, 4), (2, 1, 4, 4),
+                   (1, 2, 4, 4), (1, 1, 4, 4),
                    (2, 3, 24, 24), (2, 3, 20, 20),
-                   (2, 3, 49, 49), (20, 1, 98, 98)]
+                   (2, 3, 48, 48), (20, 1, 98, 98)]
 
     #Each item in fshapes_list = (fmodules, filters_per_module,
     #                             fcolors, frows, fcols)
-    fshape_list = [(1, 1, 2, 3, 3), (1, 1, 2, 3, 3),
+    fshape_list = [(1, 1, 1, 2, 2), (1, 1, 1, 2, 2),
+                   (1, 1, 2, 2, 2), (1, 4, 1, 2, 2),
                    (1, 1, 3, 6, 6), (3, 2, 3, 6, 6),
-                   (6, 32, 3, 11, 11), (11, 32, 1, 11, 11)]
+                   (5, 32, 3, 11, 11), (11, 32, 1, 11, 11)]
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
     #                              hrows, hcols)
-    hshape_list = [(1, 1, 1, 2, 2), (1, 1, 1, 2, 2),
+    hshape_list = [(1, 1, 1, 2, 2), (2, 1, 1, 2, 2),
+                   (1, 1, 1, 2, 2), (1, 1, 4, 2, 2),
                    (2, 1, 1, 4, 4), (2, 3, 2, 3, 3),
-                   (2, 6, 32, 4, 4), (20, 11, 32, 8, 8)]
+                   (2, 5, 32, 4, 4), (20, 11, 32, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'

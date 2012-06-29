@@ -845,7 +845,7 @@ class WeightActs(Base):
                (%(output)s->dimensions[2] != icolors) || 
                (%(output)s->dimensions[3] != frows) || 
                (%(output)s->dimensions[4] != fcols) ||
-               (!PyArray_ISBEHAVED(%(output)s)) || 
+               (!PyArray_ISCARRAY(%(output)s)) || 
                ((%(output)s->descr->type_num != PyArray_DOUBLE) && 
                 (%(output)s->descr->type_num != PyArray_FLOAT)))
             {
@@ -889,14 +889,14 @@ class WeightActs(Base):
                                             PyArray_ITEMSIZE(%(output)s);
                                 
                 for(int module = 0; module < fmodules; module++){
-                    for(int fpm = 0; fpm < fmodules; fpm++){
+                    for(int fpm = 0; fpm < filters_per_module; fpm++){
                         for(int color = 0; color < icolors; color++){
-                            for(int row = 0; row < irows; row++){
-                                for(int col = 0; col < icols; col++){
+                            for(int row = 0; row < frows; row++){
+                                for(int col = 0; col < fcols; col++){
                             
                                     data_ptr[module * s0 + fpm * s1 +
                                              color * s2 + row * s3 + 
-                                             row * s4] = 0.0f;
+                                             col * s4] = 0.0f;
                                 }
                             }
                         }
