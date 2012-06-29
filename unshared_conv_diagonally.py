@@ -364,7 +364,7 @@ class FilterActs(Base):
                               "FilterActs: failed to alloc memory for output");
                     Py_XDECREF(c_images);
                     Py_XDECREF(c_filters);
-                    %(fail)s
+                    %(fail)s;
                 }
 
             }else{
@@ -422,8 +422,9 @@ class FilterActs(Base):
                             "FilterActs: failed to alloc memory for gemm_out");
                         for(int j = 0; j < i; j++)
                             Py_DECREF(gemm_outs[j]);
-
-                        %(fail)s
+                        Py_XDECREF(c_images);
+                        Py_XDECREF(c_filters);
+                        %(fail)s;
                     }
                 }
 
@@ -445,7 +446,9 @@ class FilterActs(Base):
                             Py_DECREF(gemm_outs[j]);
                         for(int j = 0; j < i; j++)
                             Py_DECREF(gemm_imgs[j]);
-                        %(fail)s
+                        Py_XDECREF(c_images);
+                        Py_XDECREF(c_filters);
+                        %(fail)s;
                     }
                 }
 
@@ -572,22 +575,6 @@ class FilterActs(Base):
 
                             }
                         }
-        /*
-                        rc_images = images[:, :,
-                                           img_r_offset:img_r_offset + frows,
-                                           img_c_offset:img_c_offset + fcols]
-                        rc_filters = filters[m]
-                        # rc_images are count x fcolors x frows x fcols
-                        # rc_filters are fpm x fcolors x frows x fcols
-                        A = rc_images.reshape(icount, -1)
-                        B = rc_filters.reshape(filters_per_module, -1).T
-                        for i in range(A.shape[0]):
-                            for j in range(B.shape[1]):
-                                s = 0
-                                for k in range(A.shape[1]):
-                                    s += A.item(i, k) * B.item(k, j)
-                                hidacts2[i, m, j, hR, hC] = s
-        */
                     }
                 }
             }
@@ -1434,7 +1421,7 @@ class ImgActs(Base):
                     (%(output)s->dimensions[1] != fcolors) || 
                     (%(output)s->dimensions[2] != irows) || 
                     (%(output)s->dimensions[3] != icols) || 
-                    (!PyArray_ISBEHAVED(%(output)s)) || 
+                    //(!PyArray_ISBEHAVED(%(output)s)) || 
                     ((%(output)s->descr->type_num != PyArray_DOUBLE) && 
                      (%(output)s->descr->type_num != PyArray_FLOAT)))
             {
@@ -1456,10 +1443,21 @@ class ImgActs(Base):
                     %(fail)s
                 }
                 
-            }else{
+            }else{               
                 // The output array is of the proper format.
                 // Its content must be initialized to zeros.
-                PyArray_FILLWBYTE(%(output)s, 0);
+                for(int count=0; count < hcount; count++){
+                    for(int color=0; color < fcolors; color++){
+                        for(int row=0; row < irows; row++){
+                            for(int col=0; col < icols; col++){
+                                ((dtype_%(output)s*)
+                                    PyArray_GETPTR4(%(output)s, count,
+                                                    color, row,
+                                                    col))[0] = 0.0f;
+                            }
+                        }
+                    }
+                }
             }
             
             
