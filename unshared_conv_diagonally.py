@@ -837,8 +837,8 @@ class WeightActs(Base):
                        
             if (hrows * frows + fmodules - 1 != irows){
                 PyErr_SetString(
-                      PyExc_ValueError,
-                      "hrows * frows + fmodules - 1 should be equal to irows");
+                    PyExc_ValueError,
+                    "hrows * frows + fmodules - 1 should be equal to irows");
                 %(fail)s;
             }
             
@@ -878,7 +878,7 @@ class WeightActs(Base):
                 if(!%(output)s) {
                     PyErr_SetString(PyExc_MemoryError, 
                                     "failed to alloc memory for output");
-                    %(fail)s
+                    %(fail)s;
                 }
                 
    
@@ -966,8 +966,8 @@ class WeightActs(Base):
                                                   0);
             if(!img_C) {
                 PyErr_SetString(PyExc_MemoryError, 
-                                "failed to alloc memory for dotPResult");
-                %(fail)s
+                                "failed to alloc memory for img_C");
+                %(fail)s;
             }
             dtype_%(output)s* img_C_ptr = (dtype_%(output)s*)(img_C->data);
             
@@ -988,13 +988,16 @@ class WeightActs(Base):
             if(!hid_C) {
                 PyErr_SetString(PyExc_MemoryError, 
                                 "failed to alloc memory for hid_C");
-                %(fail)s
+                Py_XDECREF(img_C);
+                %(fail)s;
             }
             
             if(PyArray_CopyInto(hid_C, hid_C_view) != 0){
                 PyErr_SetString(PyExc_MemoryError, 
                                 "failed to copy data to hid_C");
-                %(fail)s            
+                Py_XDECREF(img_C);
+                Py_XDECREF(hid_C);
+                %(fail)s;            
             }
             
             dtype_%(output)s* hid_C_ptr = (dtype_%(output)s*)(hid_C->data);
@@ -1410,8 +1413,8 @@ class ImgActs(Base):
             
             if (hrows * frows + fmodules - 1 != irows){
                 PyErr_SetString(
-                      PyExc_ValueError,
-                      "hrows * frows + fmodules - 1 should be equal to irows");
+                    PyExc_ValueError,
+                    "hrows * frows + fmodules - 1 should be equal to irows");
                 %(fail)s;
             }
             
@@ -1497,7 +1500,7 @@ class ImgActs(Base):
             // Check if BLAS' gemv can be used to speed up the computations
             
             const bool useBlas = PyArray_ISCONTIGUOUS(%(hidacts)s) &&
-                           PyArray_ISCONTIGUOUS(%(filters)s);
+                                 PyArray_ISCONTIGUOUS(%(filters)s);
                      
             
             // Allocate variable used to call the BLAS function
@@ -1533,7 +1536,7 @@ class ImgActs(Base):
 //We swap the loop on hrows and fmodules as we can't parallelize on
 //fmodules as this create multiple write to the same adress by
 //multiple threads.
-#pragma omp parallel default(shared) shared(noTrans, %(output)s)
+#pragma omp parallel default(shared) shared(noTrans, %(output)s) if(0)
 {
             dtype_%(hidacts)s* hidacts_ptr =
                                 (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
