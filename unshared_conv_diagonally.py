@@ -1276,6 +1276,9 @@ class ImgActs(Base):
     def c_libraries(self):
         return blas.ldflags()
 
+    def c_headers(self):
+        return ["omp.h"]
+
     def c_compile_args(self):
         ret = blas.ldflags(libs=False, flags=True)
         if self.openmp:
@@ -1311,6 +1314,7 @@ class ImgActs(Base):
         # Assign self.module_stride to a local variable else 
         # the %(module_stride)s fails
         module_stride = self.module_stride
+        openmp = int(self.openmp)
         
         #Generate C code
         fail = sub['fail']
@@ -1354,22 +1358,22 @@ class ImgActs(Base):
         
             // Extract input variables
             
-            int hcount = %(hidacts)s->dimensions[0];
-            int fmodules = %(hidacts)s->dimensions[1];
-            int filters_per_module = %(hidacts)s->dimensions[2];
-            int hrows = %(hidacts)s->dimensions[3];
-            int hcols = %(hidacts)s->dimensions[4];
+            const int hcount = %(hidacts)s->dimensions[0];
+            const int fmodules = %(hidacts)s->dimensions[1];
+            const int filters_per_module = %(hidacts)s->dimensions[2];
+            const int hrows = %(hidacts)s->dimensions[3];
+            const int hcols = %(hidacts)s->dimensions[4];
             
-            int fmodules_ = %(filters)s->dimensions[0];
-            int filters_per_module_ = %(filters)s->dimensions[1];
-            int fcolors = %(filters)s->dimensions[2];
-            int frows = %(filters)s->dimensions[3];
-            int fcols = %(filters)s->dimensions[4];
+            const int fmodules_ = %(filters)s->dimensions[0];
+            const int filters_per_module_ = %(filters)s->dimensions[1];
+            const int fcolors = %(filters)s->dimensions[2];
+            const int frows = %(filters)s->dimensions[3];
+            const int fcols = %(filters)s->dimensions[4];
             
-            int irows = ((dtype_%(irows)s *) (%(irows)s->data))[0];
-            int icols = ((dtype_%(icols)s *) (%(icols)s->data))[0];
+            const int irows = ((dtype_%(irows)s *) (%(irows)s->data))[0];
+            const int icols = ((dtype_%(icols)s *) (%(icols)s->data))[0];
             
-            int module_stride = %(module_stride)s;
+            const int module_stride = %(module_stride)s;
             
             
             // Validate the shape of the input tensors
@@ -1450,108 +1454,97 @@ class ImgActs(Base):
                 }
                 
             }else{
-            
-                // The output array is of the proper format. 
+                // The output array is of the proper format.
                 // Its content must be initialized to zeros.
-                
-                for(int count=0; count < hcount; count++){
-                    for(int color=0; color < fcolors; color++){
-                        for(int row=0; row < irows; row++){
-                            for(int col=0; col < icols; col++){
-                                ((dtype_%(output)s*) 
-                                        PyArray_GETPTR4(%(output)s, count,
-                                                        color, row, 
-                                                        col))[0] = 0.0f;     
-                            }
-                        }
-                    }
-                }
-                
+                PyArray_FILLWBYTE(%(output)s, 0);
             }
             
             
             // Extract the arrays' strides
             
-            npy_intp hidacts_count_stride = PyArray_STRIDE(%(hidacts)s, 0) /
+            const npy_intp hidacts_count_stride = PyArray_STRIDE(%(hidacts)s, 0) /
                                             PyArray_ITEMSIZE(%(hidacts)s);
-            npy_intp hidacts_fmodule_stride = PyArray_STRIDE(%(hidacts)s, 1) /
+            const npy_intp hidacts_fmodule_stride = PyArray_STRIDE(%(hidacts)s, 1) /
                                                PyArray_ITEMSIZE(%(hidacts)s);
-            npy_intp hidacts_filter_stride = PyArray_STRIDE(%(hidacts)s, 2) /
+            const npy_intp hidacts_filter_stride = PyArray_STRIDE(%(hidacts)s, 2) /
                                              PyArray_ITEMSIZE(%(hidacts)s);
-            npy_intp hidacts_hrows_stride = PyArray_STRIDE(%(hidacts)s, 3) / 
+            const npy_intp hidacts_hrows_stride = PyArray_STRIDE(%(hidacts)s, 3) /
                                             PyArray_ITEMSIZE(%(hidacts)s);
-            npy_intp hidacts_hcols_stride = PyArray_STRIDE(%(hidacts)s, 4) /
+            const npy_intp hidacts_hcols_stride = PyArray_STRIDE(%(hidacts)s, 4) /
                                             PyArray_ITEMSIZE(%(hidacts)s);
             
-            npy_intp filters_fmodule_stride = PyArray_STRIDE(%(filters)s, 0) /
+            const npy_intp filters_fmodule_stride = PyArray_STRIDE(%(filters)s, 0) /
                                               PyArray_ITEMSIZE(%(filters)s);
-            npy_intp filters_filter_stride = PyArray_STRIDE(%(filters)s, 1) /
+            const npy_intp filters_filter_stride = PyArray_STRIDE(%(filters)s, 1) /
                                              PyArray_ITEMSIZE(%(filters)s);
-            npy_intp filters_fcolor_stride = PyArray_STRIDE(%(filters)s, 2) /
+            const npy_intp filters_fcolor_stride = PyArray_STRIDE(%(filters)s, 2) /
                                              PyArray_ITEMSIZE(%(filters)s);
-            npy_intp filters_frows_stride = PyArray_STRIDE(%(filters)s, 3) /
+            const npy_intp filters_frows_stride = PyArray_STRIDE(%(filters)s, 3) /
                                             PyArray_ITEMSIZE(%(filters)s);
-            npy_intp filters_fcols_stride = PyArray_STRIDE(%(filters)s, 4) /
+            const npy_intp filters_fcols_stride = PyArray_STRIDE(%(filters)s, 4) /
                                             PyArray_ITEMSIZE(%(filters)s);
             
-            npy_intp output_count_stride = PyArray_STRIDE(%(output)s, 0) /
+            const npy_intp output_count_stride = PyArray_STRIDE(%(output)s, 0) /
                                            PyArray_ITEMSIZE(%(output)s);
-            npy_intp output_color_stride = PyArray_STRIDE(%(output)s, 1) /
+            const npy_intp output_color_stride = PyArray_STRIDE(%(output)s, 1) /
                                            PyArray_ITEMSIZE(%(output)s);
-            npy_intp output_frows_stride = PyArray_STRIDE(%(output)s, 2) /
+            const npy_intp output_frows_stride = PyArray_STRIDE(%(output)s, 2) /
                                            PyArray_ITEMSIZE(%(output)s);
-            npy_intp output_fcols_stride = PyArray_STRIDE(%(output)s, 3) /
+            const npy_intp output_fcols_stride = PyArray_STRIDE(%(output)s, 3) /
                                            PyArray_ITEMSIZE(%(output)s);
             
             
             // Check if BLAS' gemv can be used to speed up the computations
             
-            bool useBlas = PyArray_ISCONTIGUOUS(%(hidacts)s) &&
+            const bool useBlas = PyArray_ISCONTIGUOUS(%(hidacts)s) &&
                            PyArray_ISCONTIGUOUS(%(filters)s);
                      
-            
-            // Allocate memory for the result of the dot product
-            
-            npy_intp dotPDims[3];
-            dotPDims[0] = fcolors * frows * fcols;
-            
-            PyArrayObject* dotPResult = 
-                    (PyArrayObject*)PyArray_ZEROS(1, dotPDims,
-                                                  %(output)s->descr->type_num,
-                                                  0);
-            if(!dotPResult) {
-                PyErr_SetString(PyExc_MemoryError, 
-                                "failed to alloc memory for dotPResult");
-                %(fail)s
-            }
-            dtype_%(output)s* dotp = (dtype_%(output)s*)(dotPResult->data);
-            
             
             // Allocate variable used to call the BLAS function
             
             char noTrans = 'N';
-            %(conv_type)s alpha = 1.0f;
-            %(conv_type)s beta = 0.0f;
-            int nbRowsFilters = filters_per_module;
-            int nbColsFilters = fcolors * frows * fcols;
-            int LDA = fcolors * frows * fcols;
-            int hidacts_inc = hidacts_filter_stride;
-            int inc_output = 1; // because dotPResult is C-contiguous
-                
-                
-            // Compute the output     
+            const %(conv_type)s alpha = 1.0f;
+            const %(conv_type)s beta = 0.0f;
+            const int nbRowsFilters = filters_per_module;
+            const int nbColsFilters = fcolors * frows * fcols;
+            const int LDA = fcolors * frows * fcols;
+            const int hidacts_inc = hidacts_filter_stride;
+            const int inc_output = 1; // because dotPResult is C-contiguous
+            npy_intp dotPDims[1] = {fcolors * frows * fcols};
             
-            dtype_%(hidacts)s* hidacts_ptr = 
-                                (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
-            dtype_%(filters)s* filters_ptr = 
-                                (dtype_%(filters)s*)PyArray_DATA(%(filters)s);
-            dtype_%(hidacts)s* output_ptr = 
-                                (dtype_%(output)s*)PyArray_DATA(%(output)s);
+            int nb_threads = 1;
+            if(%(openmp)s)
+                nb_threads = omp_get_max_threads();
+            // Allocate memory for the result of the dot product
+            PyArrayObject* dotPResults[nb_threads];
+            for(int i = 0; i< nb_threads; i++){
+                dotPResults[i] = (PyArrayObject*) PyArray_ZEROS(1, dotPDims,
+                                               %(output)s->descr->type_num,
+                                               0);
+                if(!dotPResults[i]) {
+                    PyErr_SetString(PyExc_MemoryError,
+                                "failed to alloc memory for dotPResult");
+                    for(int j = 0; j < i; j++)
+                        Py_DECREF(dotPResults[j]);
+                    %(fail)s
+                }
+            }
 
 //We swap the loop on hrows and fmodules as we can't parallelize on
 //fmodules as this create multiple write to the same adress by
 //multiple threads.
-#pragma omp parallel for schedule(static) firstprivate(hidacts_ptr, filters_ptr, output_ptr)
+#pragma omp parallel default(shared) shared(noTrans, %(output)s)
+{
+            dtype_%(hidacts)s* hidacts_ptr =
+                                (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
+            dtype_%(filters)s* filters_ptr =
+                                (dtype_%(filters)s*)PyArray_DATA(%(filters)s);
+            dtype_%(hidacts)s* output_ptr =
+                                (dtype_%(output)s*)PyArray_DATA(%(output)s);
+
+            dtype_%(output)s* dotp = (dtype_%(output)s*)(dotPResults[omp_get_thread_num()]->data);
+
+#pragma omp for schedule(static)
             for(int hR=0; hR < hrows; hR++){
                 hidacts_ptr += hR * hidacts_hrows_stride;
 
@@ -1723,10 +1716,11 @@ class ImgActs(Base):
                 }
                 hidacts_ptr -= hR * hidacts_hrows_stride;
             }
-            
-        
+
+}//omp parallel
             // Free the dotPResult array
-            Py_XDECREF(dotPResult);
+            for(int i = 0; i< nb_threads; i++)
+                Py_XDECREF(dotPResults[i]);
         }
 
         """
