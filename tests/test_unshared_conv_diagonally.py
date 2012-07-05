@@ -323,6 +323,16 @@ class TestImgActs(unittest.TestCase):
                    (1, 1, 1, 2, 2), (1, 1, 4, 2, 2),
                    (2, 1, 1, 4, 4), (2, 3, 2, 3, 3),
                    (2, 5, 32, 4, 4), (20, 11, 32, 8, 8)]
+                   
+    ishape_list = [(64, 2, 98, 98)]
+
+    #Each item in fshapes_list = (fmodules, filters_per_module,
+    #                             fcolors, frows, fcols)
+    fshape_list = [(11, 5, 2, 11, 11)]
+
+    # Each item in hshapes_list = (hcount, fmodules, filter_per_module,
+    #                              hrows, hcols)
+    hshape_list = [(64, 11, 5, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'

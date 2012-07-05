@@ -22,7 +22,7 @@ class TestWeightActsSpeed(unittest.TestCase):
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
-    ishape_list = [(10, 1, 98, 98)]
+    ishape_list = [(64, 1, 98, 98)]
 
     #Each item in fshapes_list = (fmodules, filters_per_module, 
     #                             fcolors, frows, fcols)
@@ -30,7 +30,7 @@ class TestWeightActsSpeed(unittest.TestCase):
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module, 
     #                              hrows, hcols)
-    hshape_list = [(10, 11, 32, 8, 8)]
+    hshape_list = [(64, 11, 32, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'
@@ -106,7 +106,7 @@ class TestImgActsSpeed(unittest.TestCase):
     # Global test variables (may be extended to include more tests)
 
     #Each item in ishape_list : (icount, icolors, irows, icols)
-    ishape_list = [(10, 1, 98, 98)]
+    ishape_list = [(64, 1, 98, 98)]
 
     #Each item in fshapes_list = (fmodules, filters_per_module, 
     #                             fcolors, frows, fcols)
@@ -114,7 +114,7 @@ class TestImgActsSpeed(unittest.TestCase):
 
     # Each item in hshapes_list = (hcount, fmodules, filter_per_module, 
     #                              hrows, hcols)
-    hshape_list = [(10, 11, 32, 8, 8)]
+    hshape_list = [(64, 11, 32, 8, 8)]
 
     module_stride = 1
     dtype = 'float64'
@@ -212,6 +212,9 @@ class TestFiltersActsSpeedF64(unittest.TestCase):
                    (9, 32, 1, 10, 10), (9, 32, 1, 11, 11),
 
     ]
+    
+    ishape_list = [(64, 1, 98, 98)]
+    fshape_list = [(11, 32, 1, 11, 11)]
 
     module_stride = 1
     dtype = 'float64'
