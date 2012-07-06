@@ -1462,25 +1462,7 @@ class ImgActs(Base):
                         (PyArrayObject*)PyArray_SwapAxes(%(hidacts)s, 0, 3);
             hid_C_view = (PyArrayObject*)PyArray_SwapAxes(hid_C_view, 2, 4);
             
-            PyArrayObject* hid_C = 
-                    (PyArrayObject*)PyArray_EMPTY(5, hid_C_view->dimensions,
-                                                  hid_C_view->descr->type_num,
-                                                  0);
-            
-            if(!hid_C) {
-                PyErr_SetString(PyExc_MemoryError, 
-                                "failed to alloc memory for hid_C");
-                Py_XDECREF(filter_C);
-                %(fail)s;
-            }
-            
-            if(PyArray_CopyInto(hid_C, hid_C_view) != 0){
-                PyErr_SetString(PyExc_MemoryError, 
-                                "failed to copy data to hid_C");
-                Py_XDECREF(filter_C);
-                Py_XDECREF(hid_C);
-                %(fail)s;            
-            }
+            PyArrayObject* hid_C = PyArray_GETCONTIGUOUS(hid_C_view);
             
             
             // Extract the arrays' strides
