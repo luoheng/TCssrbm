@@ -486,17 +486,22 @@ class FilterActs(Base):
                             //copy the images into gemm_img
                             dtype_%(images)s* gemm_img_ptr = (dtype_%(images)s*) gemm_img->data;
 
-//       raise(SIGINT);
+//       raise(SIGINT);                          
+                            
                             for(int ic=0; ic<icount; ic++){
+                                rc_images += ic*img_strd_0;
                                 for(int i=0; i<fcolors; i++){
+                                    rc_images += i*img_strd_1;                                  
                                     for(int j=0; j<frows; j++){
-                                        for(int k=0; k<fcols; k++, gemm_img_ptr++){
-                                            gemm_img_ptr[0] = rc_images[ic*img_strd_0 + i*img_strd_1 +
-                                                                        j*img_strd_2 + k*img_strd_3];
-                                        }
+                                        rc_images += j*img_strd_2;
+                                        memcpy(gemm_img_ptr, rc_images, fcols * PyArray_ITEMSIZE(%(images)s));
+                                        gemm_img_ptr += fcols;
+                                        rc_images -= j*img_strd_2;
                                     }
+                                    rc_images -= i*img_strd_1;
                                 }
-                            }
+                                rc_images -= ic*img_strd_0;
+                            }                            
 
                             //call gemm, it expect input as f order, so we need to swap inputs.
                             %(gemm)s(&Trans, &noTrans,
@@ -512,12 +517,16 @@ class FilterActs(Base):
                                                      //j * %(output)s->strides[2] +
                                                      hR * %(output)s->strides[3] +
                                                      hC * %(output)s->strides[4]);
-                            void* gemm_out_ptr = PyArray_DATA(gemm_out);
-                            for(int i=0; i<icount;
-                                i++, out_ptr += out_strd_i){
-                                for(int j=0; j<filters_per_module; j++){
-                                    out_ptr[j * out_strd_j] = *((dtype_%(output)s*)(gemm_out_ptr + i * gemm_out->strides[0] + j * gemm_out->strides[1]));
 
+                            dtype_%(output)s* gemm_out_ptr = (dtype_%(output)s*)PyArray_DATA(gemm_out);
+                            int gemm_out_s0 = gemm_out->strides[0] / PyArray_ITEMSIZE(gemm_out);
+                            int gemm_out_s1 = gemm_out->strides[1] / PyArray_ITEMSIZE(gemm_out);
+                            
+                            for(int i=0; i<icount;
+                                i++, out_ptr += out_strd_i,
+                                gemm_out_ptr += gemm_out_s0){
+                                for(int j=0; j<filters_per_module; j++){
+                                    out_ptr[j * out_strd_j] = *(gemm_out_ptr + j * gemm_out_s1);
                                 }
                             }
                         }
@@ -862,6 +871,7 @@ class WeightActs(Base):
             
                 %(output)s = (PyArrayObject*)PyArray_ZEROS(5, outputDims, 
                                              %(images)s->descr->type_num, 0);
+                                             
                 if(!%(output)s) {
                     PyErr_SetString(PyExc_MemoryError, 
                                     "failed to alloc memory for output");
@@ -877,31 +887,9 @@ class WeightActs(Base):
                 dtype_%(output)s* data_ptr = 
                                 (dtype_%(output)s*)PyArray_DATA(%(output)s);
                                 
-                npy_intp s0 = PyArray_STRIDE(%(output)s, 0) /
-                                            PyArray_ITEMSIZE(%(output)s);
-                npy_intp s1 = PyArray_STRIDE(%(output)s, 1) /
-                                             PyArray_ITEMSIZE(%(output)s);
-                npy_intp s2 = PyArray_STRIDE(%(output)s, 2) /
-                                             PyArray_ITEMSIZE(%(output)s);
-                npy_intp s3 = PyArray_STRIDE(%(output)s, 3) / 
-                                            PyArray_ITEMSIZE(%(output)s);
-                npy_intp s4 = PyArray_STRIDE(%(output)s, 4) /
-                                            PyArray_ITEMSIZE(%(output)s);
-                                
-                for(int module = 0; module < fmodules; module++){
-                    for(int fpm = 0; fpm < filters_per_module; fpm++){
-                        for(int color = 0; color < icolors; color++){
-                            for(int row = 0; row < frows; row++){
-                                for(int col = 0; col < fcols; col++){
-                            
-                                    data_ptr[module * s0 + fpm * s1 +
-                                             color * s2 + row * s3 + 
-                                             col * s4] = 0.0f;
-                                }
-                            }
-                        }
-                    }
-                }  
+                memset(data_ptr, 0, PyArray_ITEMSIZE(%(output)s) * 
+                       PyArray_SIZE(%(output)s));
+   
             }       
             
             
@@ -948,7 +936,7 @@ class WeightActs(Base):
             dotPDims[1] = icolors * frows * fcols;
             
             PyArrayObject* img_C = 
-                    (PyArrayObject*)PyArray_ZEROS(2, dotPDims,
+                    (PyArrayObject*)PyArray_EMPTY(2, dotPDims,
                                                   %(output)s->descr->type_num,
                                                   0);
             if(!img_C) {
@@ -968,7 +956,7 @@ class WeightActs(Base):
             hid_C_view = (PyArrayObject*)PyArray_SwapAxes(hid_C_view, 2, 3);
             
             PyArrayObject* hid_C = 
-                    (PyArrayObject*)PyArray_ZEROS(5, hid_C_view->dimensions,
+                    (PyArrayObject*)PyArray_EMPTY(5, hid_C_view->dimensions,
                                                   hid_C_view->descr->type_num,
                                                   0);
             
@@ -1061,20 +1049,35 @@ class WeightActs(Base):
                                                    frowsIndex) * 
                                                   images_irows_stride;
                                     img_C_ptr += frowsIndex * fcols;
+                                    
+                                    // Copy fcols elements from images_ptr
+                                    // to img_C_ptr
+                                    if( PyArray_ISCARRAY(%(images)s) ){
+                                    
+                                        images_ptr += img_c_offset;
+                                        memcpy(img_C_ptr, images_ptr, 
+                                               fcols * 
+                                               PyArray_ITEMSIZE(%(images)s));
+                                        images_ptr -= img_c_offset; 
                                         
-                                    for(int fcolsIndex=0; fcolsIndex < fcols;
-                                        fcolsIndex++){
-                                            
-                                        images_ptr += (img_c_offset + 
-                                                       fcolsIndex) * 
-                                                      images_icols_stride;
-                                                                                            
-                                        img_C_ptr[fcolsIndex] = images_ptr[0];
-                                                                                               
-                                        images_ptr -= (img_c_offset + 
-                                                       fcolsIndex) * 
-                                                      images_icols_stride;
+                                    }else{
+                                    
+                                        for(int fcolsIndex=0; fcolsIndex < fcols;
+                                            fcolsIndex++){
+                                                
+                                            images_ptr += (img_c_offset + 
+                                                        fcolsIndex) * 
+                                                        images_icols_stride;
+                                                                                                
+                                            img_C_ptr[fcolsIndex] = images_ptr[0];
+                                                                                                
+                                            images_ptr -= (img_c_offset + 
+                                                        fcolsIndex) * 
+                                                        images_icols_stride;
+                                        }
+                                        
                                     }
+                                    
                                             
                                     images_ptr -= (img_r_offset + 
                                                    frowsIndex) *
@@ -1090,8 +1093,7 @@ class WeightActs(Base):
                             images_ptr -= icountIndex * images_count_stride;
                             img_C_ptr -= icountIndex * icolors * frows * 
                                          fcols;
-                        }
-                                               
+                        }                    
                         
                         %(gemm)s(&noTrans, &noTrans, 
                                  &gemm_m, &gemm_n, &gemm_k,
@@ -1291,10 +1293,12 @@ class ImgActs(Base):
                                   node.inputs[1].type.dtype) 
         if conv_type == 'float32':
             conv_type = "float"
-            gemv = "sgemv_"
+            gemm = "sgemm_"
+            axpy = "saxpy_"
         elif conv_type == 'float64':
             conv_type = "double"
-            gemv = "dgemv_"
+            gemm = "dgemm_"
+            axpy = "daxpy_"
         else:
             raise Exception()
         
@@ -1414,14 +1418,13 @@ class ImgActs(Base):
             
             
                     
-            // Ensure output array is of the proper format
-            
+            // Ensure output array is of the proper format            
             if (NULL == %(output)s || 
                     (%(output)s->dimensions[0] != hcount) || 
                     (%(output)s->dimensions[1] != fcolors) || 
                     (%(output)s->dimensions[2] != irows) || 
                     (%(output)s->dimensions[3] != icols) || 
-                    //(!PyArray_ISBEHAVED(%(output)s)) || 
+                    (!PyArray_ISCARRAY(%(output)s)) || 
                     ((%(output)s->descr->type_num != PyArray_DOUBLE) && 
                      (%(output)s->descr->type_num != PyArray_FLOAT)))
             {
@@ -1429,11 +1432,7 @@ class ImgActs(Base):
                 
                 if (NULL != %(output)s) Py_XDECREF(%(output)s);
                 
-                npy_intp outputDims[4];
-                outputDims[0] = hcount;
-                outputDims[1] = fcolors;
-                outputDims[2] = irows;
-                outputDims[3] = icols;
+                npy_intp outputDims[4] = {hcount, fcolors, irows, icols};
             
                 %(output)s = (PyArrayObject*)PyArray_ZEROS(4, outputDims, 
                                              %(filters)s->descr->type_num, 0);
@@ -1446,45 +1445,28 @@ class ImgActs(Base):
             }else{               
                 // The output array is of the proper format.
                 // Its content must be initialized to zeros.
-                for(int count=0; count < hcount; count++){
-                    for(int color=0; color < fcolors; color++){
-                        for(int row=0; row < irows; row++){
-                            for(int col=0; col < icols; col++){
-                                ((dtype_%(output)s*)
-                                    PyArray_GETPTR4(%(output)s, count,
-                                                    color, row,
-                                                    col))[0] = 0.0f;
-                            }
-                        }
-                    }
-                }
+                dtype_%(hidacts)s* out_ptr = 
+                                (dtype_%(output)s*)PyArray_DATA(%(output)s);
+                                
+                memset(out_ptr, 0, PyArray_ITEMSIZE(%(output)s) * 
+                                   PyArray_SIZE(%(output)s));
+                                
             }
             
             
+            // Obtain C-Contiguous versions of %(hidacts)s and %(filters)s.
+            
+            PyArrayObject* filter_C = PyArray_GETCONTIGUOUS(%(filters)s);
+            
+            PyArrayObject* hid_C_view = 
+                        (PyArrayObject*)PyArray_SwapAxes(%(hidacts)s, 0, 3);
+            hid_C_view = (PyArrayObject*)PyArray_SwapAxes(hid_C_view, 2, 4);
+            
+            PyArrayObject* hid_C = PyArray_GETCONTIGUOUS(hid_C_view);
+            
+            
             // Extract the arrays' strides
-            
-            const npy_intp hidacts_count_stride = PyArray_STRIDE(%(hidacts)s, 0) /
-                                            PyArray_ITEMSIZE(%(hidacts)s);
-            const npy_intp hidacts_fmodule_stride = PyArray_STRIDE(%(hidacts)s, 1) /
-                                               PyArray_ITEMSIZE(%(hidacts)s);
-            const npy_intp hidacts_filter_stride = PyArray_STRIDE(%(hidacts)s, 2) /
-                                             PyArray_ITEMSIZE(%(hidacts)s);
-            const npy_intp hidacts_hrows_stride = PyArray_STRIDE(%(hidacts)s, 3) /
-                                            PyArray_ITEMSIZE(%(hidacts)s);
-            const npy_intp hidacts_hcols_stride = PyArray_STRIDE(%(hidacts)s, 4) /
-                                            PyArray_ITEMSIZE(%(hidacts)s);
-            
-            const npy_intp filters_fmodule_stride = PyArray_STRIDE(%(filters)s, 0) /
-                                              PyArray_ITEMSIZE(%(filters)s);
-            const npy_intp filters_filter_stride = PyArray_STRIDE(%(filters)s, 1) /
-                                             PyArray_ITEMSIZE(%(filters)s);
-            const npy_intp filters_fcolor_stride = PyArray_STRIDE(%(filters)s, 2) /
-                                             PyArray_ITEMSIZE(%(filters)s);
-            const npy_intp filters_frows_stride = PyArray_STRIDE(%(filters)s, 3) /
-                                            PyArray_ITEMSIZE(%(filters)s);
-            const npy_intp filters_fcols_stride = PyArray_STRIDE(%(filters)s, 4) /
-                                            PyArray_ITEMSIZE(%(filters)s);
-            
+                        
             const npy_intp output_count_stride = PyArray_STRIDE(%(output)s, 0) /
                                            PyArray_ITEMSIZE(%(output)s);
             const npy_intp output_color_stride = PyArray_STRIDE(%(output)s, 1) /
@@ -1494,234 +1476,158 @@ class ImgActs(Base):
             const npy_intp output_fcols_stride = PyArray_STRIDE(%(output)s, 3) /
                                            PyArray_ITEMSIZE(%(output)s);
             
+            const npy_intp filC_fmodule_stride = PyArray_STRIDE(filter_C, 0) /
+                                                 PyArray_ITEMSIZE(filter_C);
+            const npy_intp filC_filter_stride = PyArray_STRIDE(filter_C, 1) /
+                                                PyArray_ITEMSIZE(filter_C);
+            const npy_intp filC_fcolor_stride = PyArray_STRIDE(filter_C, 2) /
+                                                PyArray_ITEMSIZE(filter_C);
+            const npy_intp filC_frows_stride = PyArray_STRIDE(filter_C, 3) /
+                                               PyArray_ITEMSIZE(filter_C);
+            const npy_intp filC_fcols_stride = PyArray_STRIDE(filter_C, 4) /
+                                               PyArray_ITEMSIZE(filter_C);
+                                                          
+            const npy_intp hidC_count_stride = PyArray_STRIDE(hid_C, 3) /
+                                               PyArray_ITEMSIZE(hid_C);
+            const npy_intp hidC_module_stride = PyArray_STRIDE(hid_C, 1) /
+                                                PyArray_ITEMSIZE(hid_C);
+            const npy_intp hidC_filter_stride = PyArray_STRIDE(hid_C, 4) /
+                                                PyArray_ITEMSIZE(hid_C);
+            const npy_intp hidC_hrows_stride =  PyArray_STRIDE(hid_C, 0) / 
+                                                PyArray_ITEMSIZE(hid_C);
+            const npy_intp hidC_hcols_stride = PyArray_STRIDE(hid_C, 2) /
+                                               PyArray_ITEMSIZE(hid_C);
             
-            // Check if BLAS' gemv can be used to speed up the computations
-            
-            const bool useBlas = PyArray_ISCONTIGUOUS(%(hidacts)s) &&
-                                 PyArray_ISCONTIGUOUS(%(filters)s);
-                     
-            
-            // Allocate variable used to call the BLAS function
+                        
+            // Allocate variable used to call BLAS' functions
             
             char noTrans = 'N';
             const %(conv_type)s alpha = 1.0f;
             const %(conv_type)s beta = 0.0f;
-            const int nbRowsFilters = filters_per_module;
-            const int nbColsFilters = fcolors * frows * fcols;
-            const int LDA = fcolors * frows * fcols;
-            const int hidacts_inc = hidacts_filter_stride;
-            const int inc_output = 1; // because dotPResult is C-contiguous
-            npy_intp dotPDims[1] = {fcolors * frows * fcols};
+            int gemm_m = fcolors * frows * fcols;
+            int gemm_n = hcount;
+            int gemm_k = filters_per_module;
             
-            int nb_threads = 1;
-            if(%(openmp)s)
-                nb_threads = omp_get_max_threads();
-            // Allocate memory for the result of the dot product
-            PyArrayObject* dotPResults[nb_threads];
-            for(int i = 0; i< nb_threads; i++){
-                dotPResults[i] = (PyArrayObject*) PyArray_ZEROS(1, dotPDims,
+            int axpi_incx = fcolors * frows * fcols;
+            int axpi_incy = output_count_stride;
+                        
+
+            npy_intp dotPDims[2] = {hcount, fcolors * frows * fcols};
+            PyArrayObject* dotPResults = 
+                (PyArrayObject*) PyArray_EMPTY(2, dotPDims,
                                                %(output)s->descr->type_num,
                                                0);
-                if(!dotPResults[i]) {
-                    PyErr_SetString(PyExc_MemoryError,
-                                "failed to alloc memory for dotPResult");
-                    for(int j = 0; j < i; j++)
-                        Py_DECREF(dotPResults[j]);
-                    %(fail)s
-                }
+                                               
+            if(!dotPResults) {
+                PyErr_SetString(PyExc_MemoryError,
+                            "failed to alloc memory for dotPResult");
+                Py_XDECREF(filter_C);
+                Py_XDECREF(hid_C);
+                %(fail)s;
             }
 
-//We swap the loop on hrows and fmodules as we can't parallelize on
-//fmodules as this create multiple write to the same adress by
-//multiple threads.
-#pragma omp parallel default(shared) shared(noTrans, %(output)s) if(0)
-{
-            dtype_%(hidacts)s* hidacts_ptr =
-                                (dtype_%(hidacts)s*)PyArray_DATA(%(hidacts)s);
-            dtype_%(filters)s* filters_ptr =
-                                (dtype_%(filters)s*)PyArray_DATA(%(filters)s);
+
             dtype_%(hidacts)s* output_ptr =
                                 (dtype_%(output)s*)PyArray_DATA(%(output)s);
+            
+            dtype_%(filters)s* filter_C_ptr = 
+                                (dtype_%(filters)s*)PyArray_DATA(filter_C);
+            
+            dtype_%(hidacts)s* hid_C_ptr = (dtype_%(hidacts)s*)PyArray_DATA(hid_C);
 
-            dtype_%(output)s* dotp = (dtype_%(output)s*)(dotPResults[omp_get_thread_num()]->data);
+            dtype_%(output)s* dotp = (dtype_%(output)s*)(dotPResults->data);
 
-#pragma omp for schedule(static)
+
             for(int hR=0; hR < hrows; hR++){
-                hidacts_ptr += hR * hidacts_hrows_stride;
+            
+                hid_C_ptr += hR * hidC_hrows_stride;
 
                 for(int m=0; m < fmodules; m++){
-                    hidacts_ptr += m * hidacts_fmodule_stride;
-                    filters_ptr += m * filters_fmodule_stride;
+                
+                    hid_C_ptr += m * hidC_module_stride;
+                    filter_C_ptr += m * filC_fmodule_stride;
                     int img_r_offset = m * module_stride + hR * frows;
                     
                 
                     for(int hC=0; hC < hcols; hC++){
                     
-                        hidacts_ptr += hC * hidacts_hcols_stride;
+                        hid_C_ptr += hC * hidC_hcols_stride;
                         int img_c_offset = m * module_stride + hC * frows;
                         
-                        if(useBlas){
                         
-                            // Use BLAS' gemv function to speed up 
-                            // the calculation of the dot products.
+                        // Use BLAS' gemv function to speed up 
+                        // the calculation of the dot products.                   
+                        %(gemm)s(&noTrans, &noTrans, 
+                                 &gemm_m, &gemm_n, &gemm_k,
+                                 &alpha, 
+                                 filter_C_ptr, &gemm_m,
+                                 hid_C_ptr, &gemm_k,
+                                 &beta,
+                                 dotp, &gemm_m);
+                                 
+                                 
+   
+                        // Add dotp content to output array
                         
-                            for(int icountIndex=0; icountIndex < hcount; 
-                                icountIndex++){
-                                                            
-                                hidacts_ptr += icountIndex * 
-                                               hidacts_count_stride;
-                                output_ptr += icountIndex * 
-                                              output_count_stride;
-                                
-                                %(gemv)s(&noTrans, &nbColsFilters,
-                                         &nbRowsFilters, &alpha,
-                                         filters_ptr, &LDA,
-                                         hidacts_ptr, &hidacts_inc,
-                                         &beta, dotp, &inc_output);
-                                        
-                                // Copy dotp content to output array
-                                for(int fcolorsIndex=0; fcolorsIndex < 
-                                    fcolors; fcolorsIndex++){
+                        output_ptr += img_c_offset * output_fcols_stride;
+                        output_ptr += img_r_offset * output_frows_stride;
+                                                               
+                        for(int fcolorsIndex=0; fcolorsIndex < 
+                            fcolors; fcolorsIndex++){
                                     
-                                    output_ptr += fcolorsIndex * 
-                                                  output_color_stride;
+                            output_ptr += fcolorsIndex * 
+                                          output_color_stride;
+                            dotp += fcolorsIndex * frows * fcols;
                                     
-                                    for(int frowsIndex=0; frowsIndex < frows; 
-                                        frowsIndex++){
+                            for(int frowsIndex=0; frowsIndex < frows; 
+                                frowsIndex++){
                                     
-                                        output_ptr += 
-                                                (img_r_offset + frowsIndex) * 
-                                                output_frows_stride;
-                                    
-                                        for(int fcolsIndex=0; 
-                                            fcolsIndex < fcols; fcolsIndex++){
-                                        
-                                            output_ptr += 
-                                                (img_c_offset+fcolsIndex) * 
-                                                output_fcols_stride;
-                                        
-                                            output_ptr[0] += 
-                                                dotp[fcolorsIndex * frows * 
-                                                fcols + frowsIndex * fcols +
-                                                fcolsIndex];
-                                            
-                                            output_ptr -= 
-                                                (img_c_offset+fcolsIndex) * 
-                                                output_fcols_stride;
-                                        }
-                                        
-                                        output_ptr -= 
-                                                (img_r_offset + frowsIndex) * 
-                                                output_frows_stride;
-                                    }
-                                    
-                                    output_ptr -= fcolorsIndex * 
-                                                  output_color_stride;
+                                output_ptr += frowsIndex * 
+                                              output_frows_stride;              
+                                dotp += frowsIndex * fcols;
+                                                                    
+                                for(int fcolsIndex=0; fcolsIndex < fcols; 
+                                    fcolsIndex++){
+   
+                                    %(axpy)s(&hcount, &alpha, dotp, &axpi_incx,
+                                             output_ptr, &axpi_incy);
+                                             
+                                    output_ptr += output_fcols_stride;
+                                    dotp++;
+
                                 }
+                                output_ptr -= fcols * output_fcols_stride;
+                                dotp -= fcols;
                                 
-                                hidacts_ptr -= icountIndex * 
-                                               hidacts_count_stride;
-                                output_ptr -= icountIndex * 
-                                              output_count_stride;
+                                    
+                                dotp -= frowsIndex * fcols;
+                                output_ptr -= frowsIndex * 
+                                              output_frows_stride;
                             }
-                        
-                        }else{
-                            // Use a slower non-BLAS version
-                        
-                            for(int icountIndex=0; icountIndex < hcount;
-                                icountIndex++){
-                            
-                                hidacts_ptr += icountIndex * 
-                                               hidacts_count_stride;
-                                output_ptr += icountIndex * 
-                                              output_count_stride;
-                            
-                                
-                                for(int fcolorsIndex=0; 
-                                    fcolorsIndex < fcolors; fcolorsIndex++){
-                                
-                                    filters_ptr += fcolorsIndex *
-                                                   filters_fcolor_stride;
-                                    output_ptr += fcolorsIndex * 
-                                                  output_color_stride;
                                     
-                                
-                                    for(int frowsIndex=0; frowsIndex < frows;
-                                        frowsIndex++){
-                                    
-                                        filters_ptr += 
-                                                frowsIndex * 
-                                                filters_frows_stride;      
-                                        output_ptr += 
-                                                (img_r_offset + frowsIndex) * 
-                                                output_frows_stride;
-                                    
-                                        for(int fcolsIndex=0; 
-                                            fcolsIndex < fcols; fcolsIndex++){
-                                        
-                                            filters_ptr += 
-                                                    fcolsIndex * 
-                                                    filters_fcols_stride;
-                                                    
-                                            output_ptr += 
-                                                    (img_c_offset +
-                                                     fcolsIndex) * 
-                                                    output_fcols_stride;
-                                            
-                                            for(int filter=0; 
-                                                filter < filters_per_module_; 
-                                                filter++){
-                                                                                    
-                                                output_ptr[0] += 
-                                                    *(hidacts_ptr + filter * 
-                                                      hidacts_filter_stride) *
-                                                    *(filters_ptr + filter *
-                                                      filters_filter_stride);
-                                                                                
-                                            }
-                                            
-                                            filters_ptr -= 
-                                                    fcolsIndex * 
-                                                    filters_fcols_stride;
-                                            output_ptr -= 
-                                                    (img_c_offset + 
-                                                     fcolsIndex) * 
-                                                    output_fcols_stride;
-                                        }
-                                        
-                                        filters_ptr -= frowsIndex * 
-                                                       filters_frows_stride;
-                                        output_ptr -= (img_r_offset + 
-                                                       frowsIndex) * 
-                                                      output_frows_stride;
-                                    }
-                                    
-                                    filters_ptr -= fcolorsIndex * 
-                                                   filters_fcolor_stride;
-                                    output_ptr -= fcolorsIndex * 
-                                                  output_color_stride;
-                                }
-                                
-                                hidacts_ptr -= icountIndex * 
-                                               hidacts_count_stride;
-                                output_ptr -= icountIndex * 
-                                              output_count_stride;
-                            }
-                        
+                            output_ptr -= fcolorsIndex * 
+                                          output_color_stride;
+                            dotp -= fcolorsIndex * frows * fcols;
                         }
                         
-                        hidacts_ptr -= hC * hidacts_hcols_stride;
+                        output_ptr -= img_c_offset * output_fcols_stride;
+                        output_ptr -= img_r_offset * output_frows_stride;
+                        
+                        hid_C_ptr -= hC * hidC_hcols_stride;
                     }
-                    hidacts_ptr -= m * hidacts_fmodule_stride;
-                    filters_ptr -= m * filters_fmodule_stride;
+                    
+                    hid_C_ptr -= m * hidC_module_stride;
+                    filter_C_ptr -= m * filC_fmodule_stride;
                 }
-                hidacts_ptr -= hR * hidacts_hrows_stride;
+                
+                hid_C_ptr -= hR * hidC_hrows_stride;
             }
 
-}//omp parallel
-            // Free the dotPResult array
-            for(int i = 0; i< nb_threads; i++)
-                Py_XDECREF(dotPResults[i]);
+
+            // Free the arrays
+            Py_XDECREF(dotPResults);
+            Py_XDECREF(filter_C);
+            Py_XDECREF(hid_C);
         }
 
         """
